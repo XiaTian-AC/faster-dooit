@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/XiaTian-AC/faster-dooit/internal/lua"
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
 	"github.com/XiaTian-AC/faster-dooit/internal/store"
 )
@@ -69,6 +70,10 @@ type Model struct {
 	// helpVisible toggles the help screen (see actionShowHelp).
 	helpVisible bool
 
+	// luaCfg holds the evaluated config.lua runtime (may be nil when no
+	// config was loaded — the skeleton uses its built-in defaults).
+	luaCfg *lua.Runtime
+
 	// quitting is set on ctrl+q to break out of the Update loop.
 	quitting bool
 }
@@ -78,10 +83,12 @@ type clipboardEntry struct {
 	id   int64
 }
 
-// New constructs the bubbletea model wired to the store.
-func New(st *store.Store) *Model {
+// New constructs the bubbletea model wired to the store and optional Lua
+// config runtime.
+func New(st *store.Store, luaCfg *lua.Runtime) *Model {
 	m := &Model{
 		store:    st,
+		luaCfg:   luaCfg,
 		focus:    PaneWorkspace,
 		mode:     ModeNormal,
 		expanded: map[int64]bool{},

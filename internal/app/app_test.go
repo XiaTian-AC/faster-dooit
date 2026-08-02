@@ -29,7 +29,7 @@ func newTestApp(t *testing.T) *Model {
 	if err := st.SaveTodo(todo); err != nil {
 		t.Fatal(err)
 	}
-	m := New(st)
+	m := New(st, nil)
 	m.RefreshFromStore()
 	return m
 }

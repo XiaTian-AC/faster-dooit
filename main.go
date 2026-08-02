@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/app"
+	"github.com/XiaTian-AC/faster-dooit/internal/lua"
 	"github.com/XiaTian-AC/faster-dooit/internal/store"
 )
 
@@ -24,7 +25,7 @@ func main() {
 		return
 	}
 	if cfg.printConfig {
-		fmt.Println(cfg.dbPath) // skeleton: prints resolved db path; real config path lands in Task 5
+		fmt.Println(cfg.configPath)
 		return
 	}
 
@@ -40,24 +41,39 @@ func main() {
 	}
 	defer st.Close()
 
-	model := app.New(st)
+	// Evaluate config.lua. A missing file falls back to nil (built-in
+	// defaults); an invalid config prints the file+line error and exits.
+	var rt *lua.Runtime
+	if _, statErr := os.Stat(cfg.configPath); statErr == nil {
+		rt, err = lua.EvalFile(cfg.configPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "faster-dooit: config error:", err)
+			os.Exit(1)
+		}
+		defer rt.Close()
+	}
+
+	model := app.New(st, rt)
 	if err := model.RefreshFromStore(); err != nil {
 		fmt.Fprintln(os.Stderr, "faster-dooit: load db:", err)
 		os.Exit(1)
 	}
-	// Tiny test program for now.
+	// Skeleton entry: loads and prints the workspace count. The interactive
+	// TUI (tea.NewProgram) is wired in a later milestone.
 	fmt.Printf("faster-dooit skeleton loaded %d workspaces from %s\n", visibleTopLevel(model), cfg.dbPath)
 }
 
 type runConfig struct {
 	dbPath       string
+	configPath   string
 	printVersion bool
 	printConfig  bool
 }
 
 func parseFlags(args []string) (runConfig, error) {
 	cfg := runConfig{
-		dbPath: defaultDBPath(),
+		dbPath:     defaultDBPath(),
+		configPath: defaultConfigPath(),
 	}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -70,8 +86,7 @@ func parseFlags(args []string) (runConfig, error) {
 				return cfg, fmt.Errorf("missing value for %s", args[i])
 			}
 			i++
-			// Skeleton: config support lands in Task 5.
-			_ = args[i]
+			cfg.configPath = args[i]
 		case "--db":
 			if i+1 >= len(args) {
 				return cfg, fmt.Errorf("missing value for %s", args[i])
@@ -93,9 +108,16 @@ func defaultDBPath() string {
 	return filepath.Join(dir, "faster-dooit", "todo.db")
 }
 
+func defaultConfigPath() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		dir = "."
+	}
+	return filepath.Join(dir, "faster-dooit", "config.lua")
+}
+
 // visibleTopLevel is a small helper to display the skeleton-load message
 // without exposing the internal app type.
 func visibleTopLevel(m *app.Model) int {
-	v := m.VisibleWorkspaces()
-	return len(v)
+	return len(m.VisibleWorkspaces())
 }
