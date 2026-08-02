@@ -74,6 +74,10 @@ type Model struct {
 	// config was loaded — the skeleton uses its built-in defaults).
 	luaCfg *lua.Runtime
 
+	// rowCache caches rendered rows keyed by (pane, id, version). Decoupled
+	// from the 1s clock tick so it is not invalidated every second.
+	rowCache map[string]string
+
 	// quitting is set on ctrl+q to break out of the Update loop.
 	quitting bool
 }
@@ -98,8 +102,9 @@ func New(st *store.Store, luaCfg *lua.Runtime) *Model {
 	return m
 }
 
-// Init implements tea.Model.
-func (m *Model) Init() tea.Cmd { return nil }
+// Init implements tea.Model. Starts the 1s bar tick (drives the clock
+// widget; decoupled from row caching).
+func (m *Model) Init() tea.Cmd { return m.startBarTick() }
 
 // RefreshFromStore reloads the in-memory tree from SQLite. Called on init
 // and after batch operations.
@@ -122,7 +127,7 @@ func (m *Model) RefreshFromStore() error {
 }
 
 // bumpVersion invalidates renderer caches without mutating state.
-func (m *Model) bumpVersion() { m.version++ }
+func (m *Model) BumpVersion() { m.version++ }
 
 // SetFocus moves focus to pane (0=workspace, 1=todo).
 func (m *Model) SetFocus(pane int) {

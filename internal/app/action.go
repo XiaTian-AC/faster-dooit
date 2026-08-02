@@ -73,7 +73,7 @@ func (m *Model) actionMoveDown(_ *Model) tea.Cmd {
 			m.TodoCursor++
 		}
 	}
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -87,7 +87,7 @@ func (m *Model) actionMoveUp(_ *Model) tea.Cmd {
 			m.TodoCursor--
 		}
 	}
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -97,7 +97,7 @@ func (m *Model) actionGoToTop(_ *Model) tea.Cmd {
 	} else {
 		m.TodoCursor = 0
 	}
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -111,7 +111,7 @@ func (m *Model) actionGoToBottom(_ *Model) tea.Cmd {
 			m.TodoCursor = n - 1
 		}
 	}
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -195,7 +195,7 @@ func (m *Model) actionToggleComplete(_ *Model) tea.Cmd {
 	if err := m.store.SaveTodo(t); err != nil {
 		return noticeCmd("toggle failed: " + err.Error())
 	}
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -208,7 +208,7 @@ func (m *Model) actionIncreaseUrgency(_ *Model) tea.Cmd {
 	if err := m.store.SaveTodo(t); err != nil {
 		return noticeCmd("urgency failed: " + err.Error())
 	}
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -223,7 +223,7 @@ func (m *Model) actionDecreaseUrgency(_ *Model) tea.Cmd {
 	if err := m.store.SaveTodo(t); err != nil {
 		return noticeCmd("urgency failed: " + err.Error())
 	}
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -281,7 +281,7 @@ func (m *Model) actionToggleExpand(_ *Model) tea.Cmd {
 		id = t.ID
 	}
 	m.expanded[id] = !m.expanded[id]
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -310,7 +310,7 @@ func (m *Model) actionToggleExpandParent(_ *Model) tea.Cmd {
 		}
 	}
 	m.expanded[id] = !m.expanded[id]
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -373,7 +373,7 @@ func (m *Model) actionStartSort(_ *Model) tea.Cmd   { return m.StartSort() }
 
 func (m *Model) actionShowHelp(_ *Model) tea.Cmd {
 	m.helpVisible = !m.helpVisible
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 

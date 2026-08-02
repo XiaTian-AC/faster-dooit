@@ -50,7 +50,7 @@ func (m *Model) StartEdit(field string) tea.Cmd {
 			m.input.SetValue(durationString(*t.Recurrence))
 		}
 	}
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -81,7 +81,7 @@ func (m *Model) ConfirmEdit() tea.Cmd {
 	}
 	m.mode = ModeNormal
 	m.editField = ""
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -90,7 +90,7 @@ func (m *Model) cancelMode() {
 	m.mode = ModeNormal
 	m.editField = ""
 	m.confirmCallback = nil
-	m.bumpVersion()
+	m.BumpVersion()
 }
 
 // StartSearch opens the SEARCH overlay. Filtering lands in Task 6; the
@@ -98,7 +98,7 @@ func (m *Model) cancelMode() {
 func (m *Model) StartSearch() tea.Cmd {
 	m.mode = ModeSearch
 	m.input = newInput("/")
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -107,7 +107,7 @@ func (m *Model) StartSearch() tea.Cmd {
 func (m *Model) StartSort() tea.Cmd {
 	m.mode = ModeSort
 	m.input = newInput("sort field")
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -122,7 +122,7 @@ func (m *Model) StartConfirmPrompt(prompt string, cb func() tea.Cmd) tea.Cmd {
 	m.input = newInput(prompt)
 	m.input.SetValue("")
 	m.confirmCallback = cb
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -130,7 +130,7 @@ func (m *Model) StartConfirmPrompt(prompt string, cb func() tea.Cmd) tea.Cmd {
 func (m *Model) Notify(msg string, level string) tea.Cmd {
 	m.notice = msg
 	m.noticeLevel = level
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -139,7 +139,7 @@ func (m *Model) confirmYes() tea.Cmd {
 	cb := m.confirmCallback
 	m.confirmCallback = nil
 	m.mode = ModeNormal
-	m.bumpVersion()
+	m.BumpVersion()
 	if cb != nil {
 		return cb()
 	}
@@ -150,7 +150,7 @@ func (m *Model) confirmYes() tea.Cmd {
 func (m *Model) confirmNo() tea.Cmd {
 	m.confirmCallback = nil
 	m.mode = ModeNormal
-	m.bumpVersion()
+	m.BumpVersion()
 	return nil
 }
 
@@ -191,7 +191,7 @@ func (m *Model) handleModeKey(msg tea.KeyMsg) tea.Cmd {
 		default:
 			var cmd tea.Cmd
 			m.input, cmd = m.input.Update(msg)
-			m.bumpVersion()
+			m.BumpVersion()
 			return cmd
 		}
 	case ModeConfirm:
@@ -219,11 +219,11 @@ func (m *Model) confirmMode() tea.Cmd {
 	case ModeSearch:
 		m.filter = m.input.Value()
 		m.mode = ModeNormal
-		m.bumpVersion()
+		m.BumpVersion()
 		return nil
 	case ModeSort:
 		m.mode = ModeNormal
-		m.bumpVersion()
+		m.BumpVersion()
 		return m.Notify("sort: "+m.input.Value(), "info")
 	}
 	return nil

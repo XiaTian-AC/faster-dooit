@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -61,7 +60,8 @@ func (m *Model) View() string {
 }
 
 func (m *Model) renderWorkspacePane(w int) string {
-	title := titleStyle.Render("Workspaces")
+	th := m.appTheme()
+	title := th.Style("primary").Bold(true).Render("Workspaces")
 	if m.root == nil {
 		return title
 	}
@@ -71,25 +71,28 @@ func (m *Model) renderWorkspacePane(w int) string {
 	}
 	lines := make([]string, 0, len(ws)+1)
 	lines = append(lines, title)
-	for i, w := range ws {
+	for i := range ws {
 		marker := "  "
 		if i == m.WorkspaceCursor && m.focus == PaneWorkspace {
-			marker = cursorStyle.Render("> ")
+			marker = th.Style("green").Render("> ")
 		}
-		indent := strings.Repeat("  ", w.NestLevel())
-		lines = append(lines, fmt.Sprintf("%s%s%s", marker, indent, truncate(w.Description, 40)))
+		indent := strings.Repeat("  ", ws[i].NestLevel())
+		lines = append(lines, marker+indent+m.RenderRow(PaneWorkspace, i))
 	}
 	return strings.Join(lines, "\n")
 }
 
 func (m *Model) renderTodoPane(w int) string {
-	title := titleStyle.Render("Todos")
+	th := m.appTheme()
+	title := th.Style("primary").Bold(true).Render("Todos")
 	if m.root == nil {
 		return title
 	}
 	ws := m.selectedWorkspace()
 	if ws == nil {
-		return lipgloss.JoinVertical(lipgloss.Left, title, dimStyle.Render("(select a workspace)"))
+		// UI 规格 #2: right pane shows the dashboard welcome until a workspace
+		// is selected.
+		return m.renderDashboard()
 	}
 	todos := m.visibleTodos()
 	if len(todos) == 0 {
@@ -97,23 +100,27 @@ func (m *Model) renderTodoPane(w int) string {
 	}
 	lines := make([]string, 0, len(todos)+1)
 	lines = append(lines, title)
-	for i, t := range todos {
+	for i := range todos {
 		marker := "  "
 		if i == m.TodoCursor && m.focus == PaneTodo {
-			marker = cursorStyle.Render("> ")
+			marker = th.Style("green").Render("> ")
 		}
-		indent := strings.Repeat("  ", t.NestLevel())
-		glyph := "o"
-		if !t.Pending {
-			glyph = "x"
-		}
-		urgency := ""
-		if t.Urgency > 0 {
-			urgency = fmt.Sprintf(" !%d", t.Urgency)
-		}
-		lines = append(lines, fmt.Sprintf("%s%s[%s] %s%s", marker, indent, glyph, truncate(t.Description, 60), urgency))
+		indent := strings.Repeat("  ", todos[i].NestLevel())
+		lines = append(lines, marker+indent+m.RenderRow(PaneTodo, i))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// renderDashboard renders the config dashboard in the todo pane.
+func (m *Model) renderDashboard() string {
+	th := m.appTheme()
+	lines := m.DashboardLines()
+	out := make([]string, 0, len(lines)+1)
+	out = append(out, th.Style("primary").Bold(true).Render("Dashboard"))
+	for _, l := range lines {
+		out = append(out, th.Style("secondary").Render(l))
+	}
+	return strings.Join(out, "\n")
 }
 
 func truncate(s string, n int) string {

@@ -13,13 +13,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.bumpVersion()
+		m.BumpVersion()
 		return m, nil
 
 	case noticeMsg:
 		m.notice = string(msg)
-		m.bumpVersion()
+		m.BumpVersion()
 		return m, nil
+
+	case tickMsg:
+		// Drive the clock bar widget. Deliberately does NOT bump the version
+		// so row caches stay warm (decoupled from the 1s tick).
+		return m, m.startBarTick()
 
 	case tea.KeyMsg:
 		// Global quit shortcuts work in every mode.
