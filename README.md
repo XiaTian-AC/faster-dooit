@@ -89,7 +89,7 @@ api.vars.theme.red       = "#FF5555"
 | `y` / `Y` | copy description / model | `p` / `P` | paste below / above |
 | `c` | toggle complete | `=` / `+` / `-` / `_` | increase / decrease urgency |
 | `/` | search | `?` | help |
-| `tab` | switch pane | `enter` | edit description |
+| `tab` / `h` / `l` | switch pane | `enter` | edit description |
 | `ctrl+s` | sort | `ctrl+q` / `ctrl+c` | quit |
 
 ## Parity matrix
@@ -120,7 +120,9 @@ api.vars.theme.red       = "#FF5555"
 | Two-pane tree (workspace + todo) | ✅ | custom flattening, expand/collapse |
 | Six modes (normal/insert/search/sort/confirm/help) | ✅ | |
 | Vim keybindings + chords (`gg`, `xx`) | ✅ | prefix-matching state machine |
-| CRUD (add sibling/child, edit 4 fields, delete w/ confirm) | ✅ | |
+| CRUD (add sibling/child, edit 4 fields, delete w/ confirm) | ✅ | new items get a default name + inline edit on the cursor row |
+| Urgency (1–5) with per-level colors | ✅ | cap 5; colors from `api.vars.urgency_colors` (built-in default when absent) |
+| Vertical centering | ✅ | panes center in the terminal when content fits |
 | Natural-language dates | ✅ | see table above |
 | Recurrence + completion cascade | ✅ | R1–R4 rules from `update_hooks.py`; recurring todos never complete |
 | Search filter | ✅ | case-insensitive, matches description |
