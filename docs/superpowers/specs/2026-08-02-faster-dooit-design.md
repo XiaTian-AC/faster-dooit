@@ -112,18 +112,49 @@ type Todo struct {
 - **仪表盘**：可配置文字/进度内容
 - **树组件**（自定义）：可见行列表按展开状态 + 版本号 memo；列布局按配置渲染，每格走格式化器
 
+## UI 规格（评审增补 2026-08-02，锚定原版源码）
+
+以下为 /autoplan Design 阶段采纳的规格，实现时逐条对齐原版，避免"键位相同但长得不像 dooit"。
+
+1. **框架比例**：左栏 20%（2fr/8fr）、右栏 80%，底部条栏高 1 行（原版 `DualSplit`/`MainScreen` 比例）。
+2. **仪表盘模型（修正）**：右栏**未选中 workspace 时显示全栏居中的欢迎页**（dashboard）；选中后切换为当前 workspace 的 todos 树（原版 `ContentSwitcher(initial="dooit-dashboard")`）。**不是**"TODO 栏顶部区域"。
+3. **焦点指示**：获得焦点的栏边框+标题用 `Theme.Primary` 色，未聚焦栏用暗淡色（原版 border `$primary`/`$background3`）；两栏有标题（"Workspaces"/"Todos"）。
+4. **空状态**：空树显示居中暗淡 "No items to display"；`a` 在空列表**始终可用**——创建首项并进入 INSERT 编辑（对齐原版 `add_first_item`）。
+5. **搜索语义**：只过滤**当前聚焦栏**；逐键实时过滤，非匹配项**变灰但可见**（树强制全展开），`escape` 清除复位；零匹配显示空状态标签。无独立"结果列表"视图。
+6. **游标策略**：两栏各维护独立游标；切换选中 workspace 时 todo 游标复位到首项；删除末尾项后游标夹紧（不越界）。
+7. **滚动/视口**：游标移动自动 ensure-visible；有滚动条或百分比指示；处理 `WindowSizeMsg`（终端 resize 重算视口与两栏布局）。
+8. **列对齐**：status/due/urgency 列宽取已加载行 max-content（有上限），description 弹性占剩余宽度；嵌套 todo 缩进 `width=2*nest`（对齐原版 `get_column_width`）。
+9. **默认视觉表**（config.lua 逐字转录原版 `default_config.py`/`theme.py`）：
+   - 状态字形：`o`(pending,黄) / `x`(completed,绿) / `!`(overdue,红)，粗体
+   - 紧急度 `!1`~`!4`：绿/黄/橙/红，0 时不显示
+   - 日期 `YYYY-MM-DD`，含时间时追加 ` (HH:MM)`
+   - 循环显示 `1d`/`2w`/`3h`/`4m`（<1 分钟显示 `?`）
+   - Nord 色板：background1 `#2E3440`、primary `#8FBCBB`、secondary `#81A1C1` 等
+   - 状态栏 widget 顺序含两个分隔：`mode chip`、`width=0 弹性分隔`、`clock chip`、`width=1 分隔`、`username chip`
+   - chip 渲染 `" X "`，NORMAL 用 primary 底、INSERT 用 secondary 底
+10. **右栏联动**：高亮 workspace 立即联动右栏 todos（**无需先按 tab**）；`tab` 只切换哪个栏接收按键。
+11. **确认框**：`Are you sure? [y/N]`，**默认取消**，除 `y` 外任意键取消；取消通知 "The items were retained"、确认通知 "The items were deleted"。
+12. **DATE 模式**：为对齐原版 `ModeType` 字面量保留为**保留常量，永不激活**，不构建 UI。
+13. **鼠标**：纯键盘操作，明确不支持鼠标（对齐原版 `prevent_default`）。
+
 ## Lua 配置系统
 
 启动时求值 `config.lua`，暴露全局 `api` 表。默认 `config.lua` 镜像 `default_config.py`：
 
 ```lua
 api.keys.set("j", api.move_down)
-api.keys.set(["=", "+"], api.increase_urgency)
+api.keys.set({"=", "+"}, api.increase_urgency)     -- Lua 列表用 {}，不是 Python 的 []
 api.layouts.todo_layout = {"status", "description", "due", "urgency"}
-api.formatter.todos.status.add(todo_status_formatter)   -- 返回 {text, style}
+
+function todo_status_formatter(value, model, api)   -- 返回 {text, style}
+  local color = value == "completed" and "green" or "yellow"
+  return {text = value == "completed" and "x" or "o", style = color}
+end
+api.formatter.todos.status.add(todo_status_formatter)
+
 api.bar.set({ get_mode, clock, get_user })
 api.dashboard.set({"Welcome to Faster Dooit!", ""})
-subscribe(ModeChanged, function(api, ev) ... end)
+subscribe("ModeChanged", function(api, ev) ... end)  -- 事件名是字符串
 timer(1, function(api) ... end)
 ```
 
@@ -143,14 +174,16 @@ Lua 格式化函数返回 `{text, style}`，桥接到 lipgloss；每行结果按
 ## 日期解析（internal/dateparse，纯 Go ~150 行）
 
 - 绝对格式：`2026-08-02`、`2026-08-02 15:30`、`2026/08/02`
-- 相对词：`today`、`tomorrow`、`next monday`、`in 3 days`、`2 weeks from now`
-- 快捷：`3d`、`2w`、`1h`、`1w 2d`
-- 失败 → 通知栏报错，留在输入态
+- 相对词：`today`、`tomorrow`、`next monday`、`in 3 days`
+- 快捷：`3d`、`2w`、`1h`（单 token）
+- 兼容原版 test_date_parse 用例：`july 1 2034`、`jan 1`（英文月格式）
+- 失败 → 通知栏报错（附支持格式提示），留在输入态
+- 明确：支持格式是**明确子集**，非 python-dateutil 全等价
 
 ## 循环任务（Recurrence）
 
-- 秒存储；输入 `1d`/`2w`/`3h`/`1d 2h`，显示 "1d 2h" 风格
-- 完成时：`due += recurrence`，`pending` 重置 true（对齐 dooit：设置循环即强制 pending）
+- 秒存储；**输入为单 token** `^(\d+)[mhdw]$`（对齐原版 `model_inputs.py`，不做 `1d 2h` 复合输入）；**显示**为多 token 风格 "1d 2h"
+- 完成时：`due += recurrence`，`pending` 重置 true（对齐 dooit：设置循环即强制 pending）；**循环任务完成永不置 completed**（级联推进见计划 Eng 修正）
 
 ## 错误处理
 

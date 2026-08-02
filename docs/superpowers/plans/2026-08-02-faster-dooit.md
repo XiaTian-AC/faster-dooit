@@ -22,6 +22,11 @@
 - 模式常量：`NORMAL` / `INSERT` / `DATE` / `SEARCH` / `SORT` / `CONFIRM`
 - 函数/命名以本计划「Interfaces」块为准；跨任务引用不得重名
 - 每个任务结束必须 `git commit`（提交信息含 `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`）
+- **重新评估门（评审新增）**：M1/M2（Task 1-4）完成后设检查点——若核心树 + CRUD + 编辑 + 持久化已可用且启动达标，由用户决定是否继续 M3-M7，不强制全做
+- **"够快"判定（评审新增）**：以 `go build` 后的二进制冷启动实测为准（不是 `go run`，避免混入编译时间），并记录原版 dooit 冷启动作基线对比
+- **默认路径（评审新增）**：DB 默认 `%APPDATA%\faster-dooit\todo.db`，config 默认 `%APPDATA%\faster-dooit\config.lua`（Windows；用 `os.UserConfigDir()`/`os.UserCacheDir()` 推算）；`main.go` 在 `store.New` 前 `os.MkdirAll(dataDir, 0o755)`；`--config` 指向不存在文件时打印 "Config file {path} not found." 并退出（对齐原版）
+- **配置合并语义（评审新增）**：config.lua 为**整体替换**——用户直接编辑分发的默认 config.lua（全注释、充当参考文档）；不搞默认+覆盖双层合并
+- **CLI 表面（评审新增）**：完整支持 `-c/--config`、`--db`、`-v/--version`（打印 "faster-dooit - x.y.z"）、`-h/--help`；`migrate` 子命令**明确不实现**（全新 schema，README 注明"旧 dooit 数据不导入"）；提供 `config_loc`（或 `config` 子命令）打印已解析 config.lua 路径
 
 ---
 
@@ -45,6 +50,17 @@
   - `(*Store).SaveWorkspace(*model.Workspace) error` / `(*Store).SaveTodo(*model.Todo) error`
   - `(*Store).DeleteWorkspace(id int64) error` / `(*Store).DeleteTodo(id int64) error`
   - `(*Store).BatchOrder(parentKind string, parentID *int64, items []orderItem) error` — 批量更新 order_index
+
+- [ ] **Step 0: 记录原版基线（评审新增）**
+
+```bash
+# 记录原版 dooit 冷启动耗时与用户真实 todo 规模，作为重写前的 before 数据
+cd F:\Workspace\Project\dooit\dooit
+Measure-Command { dooit --version | Out-Null }   # 导入+初始化基线
+# 记录用户实际 DB 规模：SELECT COUNT(*) FROM todo; 等
+```
+
+Expected: 得到原版启动耗时（秒级）与用户实际 todo 数量，写入 README 基准对比表。若用户实际 todo 数 < 100，10k 节点目标仅作上限参考，不为此过度设计。
 
 - [ ] **Step 1: 初始化 module 与依赖**
 
@@ -265,7 +281,7 @@ CREATE INDEX IF NOT EXISTS idx_todo_parent_todo ON todo(parent_todo_id);
 `
 ```
 
-`store.go` 要点：`sql.Open("sqlite", path)`；`LoadAll` 用两条 SELECT 全表读出，按 `parent_id`/`parent_workspace_id`/`parent_todo_id` 组装内存树，`order_index` 升序；`Save*` 用 `INSERT ... ON CONFLICT(id) DO UPDATE`；`Delete*` 依赖外键级联（`PRAGMA foreign_keys = ON`，通过 `_pragma=foreign_keys(1)` DSN 参数）。
+`store.go` 要点（评审修正，含 3 个 critical）：`sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")`；**必须 `db.SetMaxOpenConns(1)`**——否则 `:memory:` 测试里每个连接是独立空库、`foreign_keys` 也是每连接生效，测试会不确定失败；`LoadAll` 两条 SELECT 全表读出按父键组装内存树，`order_index` 升序、平级按 `id` 兜底；**新建行（ID==0）走 `INSERT` 并 `LastInsertId()` 回写结构体，已有 ID 才走 `ON CONFLICT(id) DO UPDATE`**（否则 id=0 会真插入、子节点父键全连到 0 冲突）；**新非根 workspace 无父时自动挂到根**（对齐原版 `Workspace.save()`）；`Delete*` 依赖 FK 级联。补测试：FK 确实生效（删 workspace 后查 todo 无孤儿）、两个新节点 id 不同且子节点父键匹配。
 
 - [ ] **Step 9: 运行存储测试确认通过**
 
@@ -367,6 +383,30 @@ Expected: FAIL
 
 规则顺序：`today`/`tomorrow` → 快捷记法 `(\d+)([dhw])` → `next <weekday>` → `in <n> <unit>s?` → 绝对 `YYYY-MM-DD[ HH:MM]` 与 `YYYY/MM/DD`。相对词以 `now` 为基准，`today` 归零到当天 0 点，`tomorrow` 为次日 0 点。解析失败返回错误（含原文提示）。
 
+**评审修正（日期覆盖）**：必须兼容原版 `test_date_parse.py` 的全部用例——`2020-01-01`（ISO）、`july 1 2034`（英文月+日+年）、`jan 1`（英文缩写月+日，默认今年）、`?????`（无效→报错）。README 明确"支持格式为明确子集，**非** python-dateutil 全等价"，不宣称完整日期解析对齐。Step 1 测试代码补充以下用例：
+
+```go
+// 追加到 dateparse_test.go
+func TestParseEnglishMonth(t *testing.T) {
+	now := fixedNow()
+	got, err := Parse("july 1 2034", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := time.Date(2034, 7, 1, 0, 0, 0, 0, time.Local)
+	if !got.Equal(want) {
+		t.Errorf("july 1 2034 = %v, want %v", got, want)
+	}
+	got, err = Parse("jan 1", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Year() != now.Year() || got.Month() != time.January || got.Day() != 1 {
+		t.Errorf("jan 1 = %v", got)
+	}
+}
+```
+
 - [ ] **Step 4: 运行确认通过**
 
 Run: `go test ./internal/dateparse/`
@@ -466,6 +506,7 @@ Expected: FAIL
 - `app.go`：`Model` 持有 `store`、`root *model.Workspace`、`focus int`、`mode Mode`、`cursor int`、`expanded map[int64]bool`、`clipboard *model.Todo`（或 workspace 类型标记）、`keys map[string]string`（按键→动作名）。`New` 里 `root = st.LoadAll()`（Task 1 产物）。
 - `tree.go`：`VisibleWorkspaces()` / `VisibleTodos()` 返回展平可见列表（`filter_refresh`/`always_expand` 稍后 Task 6 接入），只维护游标。
 - `keymap.go`：默认键位镜像原版——`j/k` 上下、`i/d/r/e` 编辑四字段、`a/A` 兄弟/子、`z/Z` 展开/父、`gg/G` 首末、`J/K` 下移/上移、`xx` 删除、`y/Y` 复制描述/节点、`p/P` 粘贴下/上、`c` 完成、`=/+` 增急、`-/_` 减急、`/` 搜索、`ctrl+s` 排序、`ctrl+q` 退出、`?` 帮助、`tab` 切焦、`enter` 进入编辑描述。
+- **评审修正（组合键）**：`keys` 不能是平面 `map[string]string`——默认键位含 `xx`/`gg` 多键组合。实现 KeyManager：输入缓冲 + 前缀匹配动作表（对齐原版 `keys.py`），按模式分表；`escape` 清缓冲、死键吞掉（按下 `g` 再按 `k` → `k` 丢失）；单按 `x` 无动作、连按 `xx` 才删除。测试：单 `x` 无动作、`xx` 删除、`g`-`k` 行为。
 - `action.go`：动作函数操作内存模型并落库（`Save*`/`BatchOrder`），返回 `tea.Cmd`（可空）。
 - `view.go`：用 lipgloss 画两栏；TODO 栏取当前 workspace 的可见 todo。
 
@@ -529,7 +570,7 @@ func TestEditDueParsesDate(t *testing.T) {
 	m := newTestApp(t)
 	m.StartEdit("due")
 	m.input.SetValue("tomorrow")
-	m.ConfirmEdit() // due 解析失败应留在输入态
+	m.ConfirmEdit() // 评审修正：解析失败留在输入态是"有意的改进"（原版是退出编辑并保留旧值）
 	if m.mode != ModeInsert {
 		t.Fatalf("invalid due should stay editing, mode = %v", m.mode)
 	}
@@ -583,7 +624,7 @@ git -C F:\Workspace\Project\dooit\faster-dooit commit -m "feat: modes and input 
   - `type lua.Runtime struct { Keys map[string]string; Layouts Layouts; Formatters Formatters; Bar []BarWidget; Dashboard []string; Theme Theme; Subscribers []Subscriber; Timers []Timer }`
   - `type Theme struct{ Primary, Secondary, Background, Background1, Green, Yellow, Orange, Red string }`
   - `type BarWidget struct { Name string; Fn *lua.LFunction; EverySec float64 }`
-  - `(*lua.Runtime).CallFormatter(l *lua.LFunction, value any, model any) (string, error)` — 调用 Lua 函数返回 `{text, style}`
+  - `(*lua.Runtime).CallFormatter(l *lua.LFunction, value any, model any, theme Theme) (string, error)` — 调用 Lua 函数返回 `{text, style}`；**必须透传 theme/运行时上下文**（原版每个默认 formatter 都从 `api.vars.theme` 取色）
   - `(*lua.Runtime).Emit(event string, args ...any)` — 触发 `subscribe` 注册的回调
 
 - [ ] **Step 1: 写失败测试**
@@ -627,6 +668,7 @@ Expected: FAIL（config.lua 不存在 / 绑定未实现）
 - `lua.go`：`lua.NewState(L)`；构造 `api` 表并注册函数：`keys.set`、`layouts.*`（赋值表）、`formatter.todos.<field>.add(fn)`、`bar.set([])`、`dashboard.set([])`、`subscribe(event, fn)`、`timer(n, fn)`、`api.vars.theme`、动作函数（`api.move_down` 等转发到 Go 动作表）。
 - `config.lua`：镜像原版 `default_config.py`——模式指示、时钟、用户名 widget；四个 todo formatter（status/due/urgency/recurrence）；键位全集；两栏 layout；状态栏顺序；dashboard 文案。
 - 桥接：Lua 返回 `{text=..., style=...}` 表 → `string`；主题色从 Lua 表读入 `Theme` 结构。
+- **评审修正（Lua 表面）**：明确 Lua API 是**封闭子集**（`keys`/`layouts`/`formatter`/`bar`/`dashboard`/`subscribe`/`timer`/`vars.theme`），README 不宣称与原版任意 Python API 全等；不实现 `api.css`/`plugin_manager`。文档如实标注，删掉"完整对齐"的过度表述。
 
 - [ ] **Step 4: 运行确认通过**
 
@@ -700,7 +742,8 @@ Expected: FAIL
 
 - [ ] **Step 3: 实现**
 
-- `renderers.go`：列布局来自 `lua.Runtime.Layouts`；每格按字段选格式化器（内置 Go formatter + Lua formatter 调用）；行字符串缓存 `map[int64]string` 以 `version` 为 key 失效。`BumpVersion` 在每次 update 落库后调用。
+- `renderers.go`：列布局来自 `lua.Runtime.Layouts`；每格按字段选格式化器（内置 Go formatter + Lua formatter 调用）。
+- **评审修正（缓存设计）**：行渲染缓存**只缓存视口内行**，按行内容（窄脏集）失效；**1s 时钟/条栏刷新与行缓存解耦**——默认布局的行里不含时钟，时钟只更新状态栏一格，绝不触发全行缓存失效。不做全局 `version` 全量失效（10k 行场景每帧重建是原版的老毛病）。
 - `bars.go`：状态栏按 `Bar` widget 数组渲染，`timer` 用 bubbletea `tea.Tick` 驱动（时钟 1s）；通知栏渲染在底部。
 - `dashboard.go`：`Dashboard []string` 渲染到 TODO 栏顶部区域（原版 dashboard）。
 - `theme.go`：`Theme` 结构 → lipgloss 颜色常量；从 `lua.Runtime.Theme` 填充。
@@ -769,11 +812,13 @@ Expected: 记录 `VisibleRows10k` 与 `Update` 的 ns/op；目标 `Update` < 1ms
 - [ ] **Step 3: 与原版功能对拍矩阵**
 
 逐项核对（原版行为来源见 spec 与源码）：两栏树、六模式、键位全集、自然语言日期、循环完成推进、搜索过滤、排序（pending 优先→due→order_index 语义）、剪贴板复制/粘贴上下、通知/确认/搜索/排序栏、帮助页、仪表盘、Lua 扩展（subscribe/timer/formatter/bar/theme/layout/keys）。每项运行验证，记录差异。
+**评审修正**：在 README 明确 `poll_dooit_db`（外部改库热刷新）为**单进程取舍、明确不实现**（而非藏在"设计缺口"括注里）；对拍矩阵里把日期解析的已支持格式清单与不支持项列成表格。测试策略补强（见 Task 7 之后）：排序/循环/搜索/粘贴位置的语义用表驱动测试覆盖；并用 bubbletea `tea.TestModel` 写一条端到端测试（按键→动作→持久化）驱动真实按键消息。
+**评审修正（完成级联，重要 parity 缺口）**：原版 `update_hooks.py` 的完成/循环级联必须实现——`c` 切换完成时：完成 todo 级联完成**整个子树**；父 todo 仅当**全部子项**完成才自动完成；重新打开任一子项会重新打开父项；**循环 todo 完成时 `due += recurrence` 且强制 pending=true（循环任务永不 completed）**。用表驱动测试覆盖四条规则。排序语义补正：复合键 `pending→due→order_index` **仅用于 `pending` 排序**；其余字段按升序 + `nulls_last`（due 为 NULL 排最后）；排序菜单 todo 7 项 / workspace 2 项；`reverse` 原地反转；平级按 `order_index, id` 兜底。
 
 - [ ] **Step 4: 启动时间验证**
 
-Run: `time go run .`（或 `go build` 后测二进制）
-Expected: 启动到界面 < 200ms（记录实测值）
+Run: `go build` 后计时生成的 `.exe`（**不要用 `go run`**，那会混入冷编译时间）；同时用 Task 1 Step 0 记录的原版基线对比
+Expected: 二进制冷启动到界面 < 200ms，且低于原版基线（记录两者实测值入 README 基准表）
 
 - [ ] **Step 5: 写 README**
 
@@ -797,3 +842,196 @@ git -C F:\Workspace\Project\dooit\faster-dooit commit -m "feat: parity polish, p
 
 - 原版 `poll_dooit_db`（外部改库热刷新）不实现——单进程应用，按 spec 砍掉
 - `dateparse` 覆盖度按原版 test_date_parse 对拍，缺失格式列入对拍矩阵
+
+---
+
+## GSTACK REVIEW REPORT
+
+### Phase 1 (CEO) — Dual Voice Consensus
+
+Claude 子代理独立声部已运行（codex 不可用，单声部）。主评审核对了原版源码（`model_tree.py`、`tui.py`、`date_parser.py`、`test_date_parse.py`）。
+
+```
+CEO DUAL VOICES — CONSENSUS TABLE (codex 不可用，单声部):
+  Dimension                           Claude  Consensus
+  1. Premises valid?                   MEDIUM  ACCEPT (用户已确认前提)
+  2. Right problem to solve?           CHALLENGE → 提升到最终门（#2）
+  3. Scope calibration correct?        HIGH    ACCEPT（评审修正入计划）
+  4. Alternatives sufficiently explored? CHALLENGE → 提升到最终门（#2）
+  5. Competitive/market risks covered? HIGH    ACCEPT（公开仓库风险→最终门 #6）
+  6. 6-month trajectory sound?         HIGH    ACCEPT（重评估门已加）
+```
+
+| # | 发现 | 严重度 | 自动决策 | 结果 |
+|---|------|--------|---------|------|
+| 1 | 问题未测量（无原版基线/真实数据量） | CRITICAL | 采纳 | Task 1 加 Step 0 基线；README 基准表 |
+| 2 | 全量重写 vs 原地优化/温驻留 | CRITICAL | **不自动决策 → 最终门** | 用户已选重写，门处让用户确认 |
+| 3 | Lua formatter 桥漏传 theme/api | HIGH | 采纳（P1/P5） | `CallFormatter` 加 theme 参数；Lua 表面标注为封闭子集 |
+| 4 | 手写 dateparse 无法对齐 dateutil | HIGH | 采纳（P5，显式胜于聪明） | 补英文月份格式 + 明确子集声明 |
+| 5 | `go run` 会伪造启动指标 | HIGH | 采纳（P3） | Task 7 改 `go build` 后计时 + 原版基线 |
+| 6 | 公开仓库 vs 活跃上游（60x stars） | HIGH | **不自动决策 → 最终门** | 用户已要求公开仓库，门处确认风险 |
+| 7 | 无时间预估/无重评估门 | HIGH | 采纳（P2/P6） | Global Constraints 加重评估门 + "够快"判定 |
+| 8 | 全局版本缓存与 1s 时钟耦合 | MEDIUM | 采纳（P5） | 视口内行缓存 + 时钟与行缓存解耦 |
+| 9 | 测试没覆盖难点 | MEDIUM | 采纳（P1） | 表驱动语义测试 + tea.TestModel e2e |
+| 10 | poll_dooit_db 取舍措辞不诚实 | MEDIUM | 采纳（P3/P5） | README 明确单进程取舍 |
+
+### Decision Audit Trail
+
+<!-- AUTONOMOUS DECISION LOG -->
+| # | Phase | Decision | Classification | Principle | Rationale | Rejected |
+|---|-------|----------|-----------|-----------|----------|----------|
+| 1 | CEO | 采纳：Task 1 加原版基线测量 | Mechanical | P3 | 无 before 数据无法证明"变快" | 无 |
+| 2 | CEO | 采纳：Lua formatter 透传 theme + 表面标封闭子集 | Mechanical | P5/P1 | 原版默认 formatter 依赖 api.vars.theme | 无 |
+| 3 | CEO | 采纳：dateparse 补英文月格式 + 明确子集声明 | Mechanical | P5 | 对齐原版 test_date_parse 用例 | 无 |
+| 4 | CEO | 采纳：`go build` 后计时 + 原版基线 | Mechanical | P3 | `go run` 混编译时间 | 无 |
+| 5 | CEO | 采纳：Global Constraints 加重评估门 | Mechanical | P2/P6 | 给项目退出条件 | 无 |
+| 6 | CEO | 采纳：视口内行缓存 + 时钟解耦 | Mechanical | P5 | 10k 行每帧重建是原版老毛病 | 无 |
+| 7 | CEO | 采纳：测试补语义表驱动 + e2e | Mechanical | P1 | 对拍矩阵需自动化锚点 | 无 |
+| 8 | CEO | 采纳：README 明确 poll_dooit_db 取舍 | Mechanical | P5 | 措辞诚实 | 无 |
+| 9 | CEO | #2（重写 vs 原地优化）→ 最终门 | User Challenge | — | 用户已明确选重写；门处确认 | — |
+| 10 | CEO | #6（公开仓库 vs 上游）→ 最终门 | User Challenge | — | 用户已明确要公开仓库；门处确认 | — |
+
+### Phase 2 (Design) — Dual Voice Consensus
+
+Claude 设计子代理独立声部已运行（单声部）。12 条发现全部为规格补强（无用户方向冲突，全部自动决策采纳），核心修正已写入设计文档「UI 规格（评审增补 2026-08-02）」：
+
+```
+DESIGN DUAL VOICES — CONSENSUS TABLE (codex 不可用，单声部):
+  Dimension                           Claude  Consensus
+  1. Frame ratio / hierarchy          HIGH    ACCEPT → UI 规格 #1
+  2. Dashboard model (right pane)     HIGH    ACCEPT → UI 规格 #2（修正为全栏欢迎页）
+  3. Focus indication                 HIGH    ACCEPT → UI 规格 #3
+  4. Empty states                     HIGH    ACCEPT → UI 规格 #4
+  5. Search/filter semantics          MED-HI  ACCEPT → UI 规格 #5
+  6. Cursor policy across panes       MED     ACCEPT → UI 规格 #6
+  7. Scroll / viewport / resize       HIGH    ACCEPT → UI 规格 #7
+  8. Column alignment                 HIGH    ACCEPT → UI 规格 #8
+  9. Default style values enumerated  MED     ACCEPT → UI 规格 #9
+  10. Right-pane auto-link            MED     ACCEPT → UI 规格 #10
+  11. Confirm dialog default-no       LOW-MED ACCEPT → UI 规格 #11
+  12. DATE dead mode / mouse          LOW     ACCEPT → UI 规格 #12、#13
+```
+
+**关键设计修正**：仪表盘从"TODO 栏顶部区域"改为原版语义——右栏未选中 workspace 时显示全栏欢迎页；列对齐/滚动/焦点/空状态均已落到具体规格，实现时逐条对齐。
+
+### Phase 3 (Eng) — Dual Voice Consensus
+
+Claude 工程子代理独立声部已运行（单声部），核对了原版 `update_hooks.py`/`todo.py`/`workspace.py`/`keys.py`/`plug.py`/`formatter_store.py`/`model_inputs.py`。18 条发现全部采纳（无用户方向冲突）。
+
+```
+ENG DUAL VOICES — CONSENSUS TABLE (codex 不可用，单声部):
+  Dimension                           Claude  Consensus
+  1. Architecture sound?              HIGH    ACCEPT（3 个 critical 修入 Task 1）
+  2. Test coverage sufficient?        MED-HI  ACCEPT（测试缺口并入实施指引）
+  3. Performance risks addressed?     MED-HI  ACCEPT（列宽/批量/时钟耦合修正）
+  4. Security threats covered?        MED     ACCEPT（Lua 沙箱化）
+  5. Error paths handled?             MED-HI  ACCEPT（写失败顺序/日期失败语义）
+  6. Deployment risk manageable?      N/A     ACCEPT（无部署面）
+```
+
+| # | 发现 | 严重度 | 决策 | 处置 |
+|---|------|--------|------|------|
+| 1 | SQLite 连接模型（:memory:/FK 每连接） | CRITICAL | 采纳(P5/P1) | Task 1：`SetMaxOpenConns(1)` + `file:` URI + `_pragma=foreign_keys(1)` |
+| 2 | Upsert 不回写新 ID | CRITICAL | 采纳(P1) | Task 1：INSERT+`LastInsertId()` 回写，已知 ID 才 upsert |
+| 3 | gopher-lua 非线程安全 | CRITICAL | 采纳(P1/P5) | 见下方「实施指引 #3」 |
+| 4 | 完成/循环级联缺失 | HIGH | 采纳(P1) | Task 7 已补：子树级联/父自动完成/循环推进 |
+| 5 | 列宽 max-content 是 O(n×Lua) | HIGH | 采纳(P5) | 见实施指引 #5 |
+| 6 | 过期状态跨 tick 陈旧 | HIGH | 采纳(P3) | 见实施指引 #6 |
+| 7 | 排序语义不准 | HIGH | 采纳(P1/P5) | Task 7 已补：nulls_last/仅 pending 复合键/7+2 项 |
+| 8 | 组合键 xx/gg 无法用平面 map | HIGH | 采纳(P1) | Task 3 已补：KeyManager 输入缓冲 |
+| 9 | Lua 桥接缝隙（fn 命名/多 formatter/bar 值持有） | MED | 采纳(P5) | 见实施指引 #9 |
+| 10 | DB 写失败内存/磁盘分叉 | MED | 采纳(P5) | 见实施指引 #10 |
+| 11 | 批量操作阻塞事件循环 | MED | 采纳(P3/P5) | 见实施指引 #11 |
+| 12 | 新节点未自动挂根 | MED | 采纳(P1) | Task 1 已补：root 自动连线 |
+| 13 | due 失败语义与原版相反 | MED | 采纳(P3) | Task 4 已注：留在输入态是**有意改进** |
+| 14 | Lua 执行攻击面 | MED | 采纳(P1) | 见实施指引 #14 |
+| 15 | 测试缺口 | MED | 采纳(P1) | 见实施指引 #15 |
+| 16 | 粘贴/克隆排序未定义 | MED | 采纳(P5) | 见实施指引 #16 |
+| 17 | 日期/循环过度宣称 | MED | 采纳(P5) | 见实施指引 #17 |
+| 18 | 杂项（SortBar 空选/always_expand/WindowSizeMsg 0 尺寸） | LOW | 采纳(P3) | 见实施指引 #18 |
+
+### Eng 实施指引（采纳发现的落地要点，实现时并入对应任务）
+
+- **#3 Lua 线程模型**：声明不变式——**Lua 只在 bubbletea 主 goroutine 调用**（Update/View 内）。`tea.Tick` 回调只返回携带 `time.Now()` 的 Msg，不碰 Lua；Lua 调用全部在 Update 里。跑 `go test -race` 验证。
+- **#5 列宽计算**：只对**可见窗口**算 max-content，设硬上限（既限宽度也限计算量），按版本缓存；某行溢出上限时重算（对齐原版 `cache_clear` 溢出语义）。加列宽路径的 benchmark，不只测 `VisibleRows`。
+- **#6 过期翻转**：tick Msg（主 goroutine，廉价）只对 `due ∈ (last_tick, now]` 的行重算 status 格（O(1)），不动其余行缓存；固定 `now` 的测试。
+- **#9 Lua 桥**：加 fn→名字注册表（`map[*lua.LFunction]string` 解 `keys.set("j", api.move_down)`）；`layouts` 表用 `__newindex` 拦截写入 `Runtime.Layouts`；formatter 是**多 formatter store**（对齐原版 `formatter_store.py`：类型 1 反向注册序直到非 nil）；bar widget 是**值持有者**（对齐 `plug.py`：订阅/定时函数把结果暂存在函数上，bar 渲染时读值），支持 width-0/width-1 分隔符；formatter 传完整 api 上下文对象（不只 theme）。
+- **#10 写失败顺序**：明确"先落库成功再改内存"，或失败时从 DB 重载替换 root 回滚内存；加失败注入测试（如关掉 DB 后执行动作）。
+- **#11 批量操作**：`BatchOrder` 单事务 + prepared statement；显式 benchmark 排序 10k；超预算则加脏队列后台刷盘。
+- **#14 Lua 沙箱**：从 LState 剥离 `os.execute`/`io`/`package`/`debug`，`SetMx` 指令上限，每个 Lua 调用点 `recover()` 转通知栏；README 文档化沙箱。
+- **#15 测试补强**：FK 级联（嵌套 workspace+子 todo）、upsert ID 回写、单连接内存库、排序表驱动（nulls_last/仅 pending 复合/ties by id）、剪贴板粘贴顺序+子树克隆、循环推进+完成级联、组合键时序、tick 不清行缓存+过期翻转、`WindowSizeMsg` 0 尺寸、空串 due 清空、`tea.TestModel` e2e 作为正式任务。
+- **#16 粘贴**：克隆子树插入内存树游标 ±1，用 `BatchOrder` 重排受影响兄弟（或依赖 `ORDER BY order_index, id`）；跨类型粘贴（workspace 贴到 todo 下）报错通知。
+- **#17 日期/循环**：循环输入对齐原版**单 token** `^(\d+)[mhdw]$`（不做 `1d 2h`）；`next monday` 当今天是周一时 → +7 天；`due TEXT` 用 `time.RFC3339`（带偏移）明确编码，加往返存储测试。
+- **#18 杂项**：SortBar 无高亮项时定义错误路径；`always_expand_todos`/`always_expand_workspaces` 给默认值；`WindowSizeMsg` 0 尺寸初始渲染。
+
+### Phase 3.5 (DX) — Dual Voice Consensus
+
+Claude DX 子代理独立声部已运行（单声部），核对了原版 `__main__.py`（CLI）/`plug.py`/`loader.py`/帮助页/wiki。15 条发现全部采纳（无用户方向冲突）。
+
+```
+DX DUAL VOICES — CONSENSUS TABLE (codex 不可用，单声部):
+  Dimension                           Claude  Consensus
+  1. Getting started < 5 min?          MED-HI  ACCEPT（首次运行冒烟 + TTHW 文档）
+  2. API/CLI naming guessable?         HIGH    ACCEPT（CLI 表面/默认路径已补）
+  3. Error messages actionable?        MED-HI  ACCEPT（cause+fix 错误表、日期格式提示）
+  4. Docs findable & complete?         MED     ACCEPT（README 展开 + Moving from dooit）
+  5. Upgrade path safe?                LOW     ACCEPT（无升级面；旧库不导入已注明）
+  6. Dev environment friction-free?    MED     ACCEPT（LICENSE/CI/维护者 quickstart）
+```
+
+| # | 发现 | 严重度 | 决策 | 处置 |
+|---|------|--------|------|------|
+| 1 | 无端到端首次运行冒烟 | MED | 采纳 | Task 3/4 加：空 DB → 欢迎页 → `a` 进 INSERT → `enter` 持久化 |
+| 2 | 默认 DB 路径未定义、目录不建 | HIGH | 采纳 | Global Constraints：默认路径 + `os.MkdirAll` |
+| 3 | CLI 表面未定义 | HIGH | 采纳 | Global Constraints：CLI 表面；不实现 migrate |
+| 4 | 默认 config.lua 位置未定义、无发现/校验 | HIGH | 采纳 | 搜索序 `--config`→`%APPDATA%`→bundled；`config_loc`；缺失/非法 Lua 错误 |
+| 5 | 默认与用户配置合并语义未定义 | MED | 采纳 | Global Constraints：整体替换 |
+| 6 | 设计文档 Lua 示例非法 | MED | 采纳(P5) | 已改为可运行 Lua；事件名用字符串；`api.no_op` 解绑 |
+| 7 | `api.notify` 缺失 | LOW | 采纳 | Lua 表面加 `api.notify(message, level)` |
+| 8 | 配置/DB 错误缺 cause+fix；回滚策略二选一 | MED | 采纳 | 错误表补 cause+fix；**选"先落库成功再改内存"** |
+| 9 | 文档一行、无迁移指南 | MED | 采纳 | Task 7 README 展开（见下方 DX 实施指引 #9） |
+| 10 | 无分发/发布机制 | LOW | 采纳 | README 给 `go build -o faster-dooit.exe .` |
+| 11 | 维护者上手/License/CI | MED | 采纳 | MIT LICENSE + GitHub Actions + quickstart + `gofmt -l .` |
+| 12 | dateparse 文档与计划不一致 | MED | 采纳 | 设计文档已对齐（去 `2 weeks from now`） |
+| 13 | 循环输入/显示不一致 | LOW | 采纳 | 设计文档已注明：单 token 输入、多 token 显示 |
+| 14 | Theme 固定子集丢未知键 | LOW | 采纳 | 未知 theme 键 → 警告通知 |
+| 15 | 200ms 目标终端未钉死 | LOW | 采纳 | 以 Windows Terminal/ConPTY 为基线，记录终端 |
+
+### DX 实施指引（采纳发现的落地要点）
+
+- **#9 README 展开**（Task 7 Step 5 从一行扩为清单）：Windows 安装/构建（`go build -o faster-dooit.exe .`）、3 个 config.lua 示例（改键 / 加 formatter / 自定义主题）、完整键位表、"Moving from dooit" 章节（Python API→Lua 对照表 + "旧 dooit 数据不迁移" 声明）。
+- **#11 仓库卫生**：加 MIT LICENSE 文件任务；GitHub Actions 最小 workflow（`go test ./...` + `go build`，windows/linux 矩阵）；维护者 quickstart 块（build/run/test/vet 命令 + bubbletea/gopher-lua 入门阅读）；`gofmt -l .` 纳入收尾检查。
+- **#8 错误表**：每条补 cause+fix；DB 写失败采用**先落库成功再改内存**（内存是派生状态）；日期解析错误文本带支持格式提示。
+- **#14 主题**：`Theme` 扩展到原版全色板（含 background3 等），未知键警告。
+
+### 架构依赖图（Eng Phase 1 产出）
+
+```
+main.go ──► internal/lua ──► config.lua（gopher-lua 求值 → Runtime{Keys,Layouts,Formatters,Bar,Dashboard,Theme}）
+   │                │
+   │                ▼
+   └──► internal/app（bubbletea Elm）
+             │  Model{root *model.Workspace, focus, mode, cursors[2], expanded, clipboard, keys}
+             ├─► Update(Msg) ──► 动作（改内存 + store 落库）──► return Cmd
+             ├─► View() ──► viewport 行渲染（lipgloss + Runtime 格式化器）
+             └─► tea.Tick(1s) ──► 仅返回时间 Msg（Lua 只在主 goroutine）
+                    │
+   internal/store ◄─┘（modernc.org/sqlite，SetMaxOpenConns(1)，先落库后改内存）
+   internal/dateparse（纯 Go 子集）
+   internal/theme（Theme 结构 → lipgloss 色）
+```
+
+### NOT in scope（评审确认后明确排除）
+
+- **`poll_dooit_db` 外部改库热刷新**——单进程取舍（README 明示）
+- **`migrate` 子命令**——全新 schema，旧 dooit 数据不导入
+- **`api.css` / `plugin_manager`**（原版 Python 插件机制）——Lua 封闭子集不含
+- **DATE 模式 UI**——保留常量、永不激活
+- **鼠标支持**——纯键盘
+- **10k 节点目标**——仅作上限参考，以用户实际数据量为准（若 <100 条不为此过度设计）
+
+### 跨阶段主题（2+ 阶段独立出现的高置信信号）
+
+1. **「别过度宣称 parity/性能」**：CEO #2/#5、Eng #6/#17、DX #12/#13 独立指出——Lua 表面、日期解析、循环输入、启动计时、poll_dooit_db 取舍都需要如实标注边界。已统一处理：所有 "完整对齐" 改为精确边界声明，启动计时改用 `go build` 后计时 + 原版基线。
+2. **Lua 桥的正确性**：CEO #3、Eng #9、DX #6/#7 独立指出 Lua 桥（formatter 透传 api、fn 命名、bar 值持有、合法 Lua 语法、事件名字符串）。已统一处理并给出实施指引。
+3. **先落库后改内存**：Eng #10 与 DX #8 一致指向同一回滚策略——已确定为单一方案。
