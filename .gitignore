@@ -1,0 +1,17 @@
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Test scratch dirs
+testdata_tmp/
+*.test
+
+# Local editor
+.idea/
+.vscode/
+*.swp

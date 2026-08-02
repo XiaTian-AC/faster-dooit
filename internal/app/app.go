@@ -1,6 +1,8 @@
 package app
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -167,16 +169,19 @@ func (m *Model) VisibleWorkspaces() []*model.Workspace {
 	return out
 }
 
-// visibleTodos returns the todos for the currently selected workspace.
-func (m *Model) visibleTodos() []*model.Todo { //nolint:unused // used by view.go
+// visibleTodos returns the todos for the currently selected workspace,
+// filtered by the active search filter when set.
+func (m *Model) visibleTodos() []*model.Todo {
 	ws := m.selectedWorkspace()
 	if ws == nil {
 		return nil
 	}
-	out := make([]*model.Todo, 0, len(ws.Todos))
+	var out []*model.Todo
 	var walk func(t *model.Todo)
 	walk = func(t *model.Todo) {
-		out = append(out, t)
+		if m.filter == "" || matchesFilter(t, m.filter) {
+			out = append(out, t)
+		}
 		if m.expanded[t.ID] || true { // skeleton: always expand
 			for _, c := range t.Todos {
 				walk(c)
@@ -187,6 +192,11 @@ func (m *Model) visibleTodos() []*model.Todo { //nolint:unused // used by view.g
 		walk(t)
 	}
 	return out
+}
+
+// matchesFilter reports whether a todo matches the active search filter.
+func matchesFilter(t *model.Todo, filter string) bool {
+	return strings.Contains(strings.ToLower(t.Description), strings.ToLower(filter))
 }
 
 // selectedWorkspace returns the workspace currently displayed in the todo
@@ -236,6 +246,41 @@ func findWorkspace(root *model.Workspace, id int64) *model.Workspace {
 	for _, c := range root.Children {
 		if w := findWorkspace(c, id); w != nil {
 			return w
+		}
+	}
+	return nil
+}
+
+// findTodoInWorkspace returns the todo with the given id anywhere under a
+// workspace tree (its own todos plus those of child workspaces).
+func findTodoInWorkspace(ws *model.Workspace, id int64) *model.Todo {
+	if ws == nil {
+		return nil
+	}
+	for _, t := range ws.Todos {
+		if t.ID == id {
+			return t
+		}
+		if f := findTodoInTodo(t, id); f != nil {
+			return f
+		}
+	}
+	for _, c := range ws.Children {
+		if f := findTodoInWorkspace(c, id); f != nil {
+			return f
+		}
+	}
+	return nil
+}
+
+// findTodoInTodo searches a todo and its descendants by id.
+func findTodoInTodo(t *model.Todo, id int64) *model.Todo {
+	for _, c := range t.Todos {
+		if c.ID == id {
+			return c
+		}
+		if f := findTodoInTodo(c, id); f != nil {
+			return f
 		}
 	}
 	return nil

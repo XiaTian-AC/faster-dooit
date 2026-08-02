@@ -118,8 +118,11 @@ func (s *Store) LoadAll() (*Workspace, error) {
 	defer todoRows.Close()
 
 	// First pass: collect every todo flat so we can resolve parent pointers
-	// in a second pass (the todos may be intermixed with their parents).
+	// in a second pass (the todos may be intermixed with their parents). The
+	// rows arrive ordered by (order_index, id); we must keep the ordered slice
+	// to preserve sibling order, since map iteration would randomize it.
 	todoByID := make(map[int64]*Todo)
+	var orderedTodos []*Todo
 	for todoRows.Next() {
 		var t Todo
 		var due sql.NullString
@@ -150,13 +153,15 @@ func (s *Store) LoadAll() (*Workspace, error) {
 			t.ParentTodoID = &id
 		}
 		todoByID[t.ID] = &t
+		orderedTodos = append(orderedTodos, &t)
 	}
 	if err := todoRows.Err(); err != nil {
 		return nil, err
 	}
 
-	// Second pass: link todos into the workspace / todo trees.
-	for _, t := range todoByID {
+	// Second pass: link todos into the workspace / todo trees, preserving the
+	// (order_index, id) order from the scan so siblings render deterministically.
+	for _, t := range orderedTodos {
 		if t.ParentWorkspaceID != nil {
 			if ws, ok := byID[*t.ParentWorkspaceID]; ok {
 				ws.Todos = append(ws.Todos, t)
@@ -305,6 +310,63 @@ func (s *Store) BatchOrder(parentKind string, parentID *int64, items []orderItem
 		if _, err := stmt.Exec(it.Order, it.ID); err != nil {
 			return err
 		}
+	}
+	return tx.Commit()
+}
+
+// ReorderAll persists the in-memory order_index for every workspace and
+// todo by walking the tree, in one transaction.
+func (s *Store) ReorderAll(root *model.Workspace) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after successful Commit
+
+	wstmt, err := tx.Prepare(`UPDATE workspace SET order_index = ? WHERE id = ?`)
+	if err != nil {
+		return err
+	}
+	defer wstmt.Close()
+	tstmt, err := tx.Prepare(`UPDATE todo SET order_index = ? WHERE id = ?`)
+	if err != nil {
+		return err
+	}
+	defer tstmt.Close()
+
+	var walkWorkspaces func(ws *model.Workspace) error
+	var walkTodos func(t *model.Todo) error
+	walkTodos = func(t *model.Todo) error {
+		if _, err := tstmt.Exec(t.OrderIndex, t.ID); err != nil {
+			return err
+		}
+		for _, c := range t.Todos {
+			if err := walkTodos(c); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	walkWorkspaces = func(ws *model.Workspace) error {
+		if !ws.IsRoot {
+			if _, err := wstmt.Exec(ws.OrderIndex, ws.ID); err != nil {
+				return err
+			}
+		}
+		for _, t := range ws.Todos {
+			if err := walkTodos(t); err != nil {
+				return err
+			}
+		}
+		for _, c := range ws.Children {
+			if err := walkWorkspaces(c); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := walkWorkspaces(root); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

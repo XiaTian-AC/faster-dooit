@@ -10,12 +10,15 @@ import (
 	"github.com/XiaTian-AC/faster-dooit/internal/dateparse"
 )
 
-// newInput returns a textinput configured with a prompt placeholder.
+// newInput returns a textinput configured with a prompt placeholder. The
+// input is focused so Update() accepts keystrokes (bubbles textinput ignores
+// keys while unfocused).
 func newInput(placeholder string) textinput.Model {
 	t := textinput.New()
 	t.Placeholder = placeholder
 	t.Prompt = ""
 	t.CharLimit = 0
+	t.Focus()
 	return t
 }
 
@@ -224,7 +227,7 @@ func (m *Model) confirmMode() tea.Cmd {
 	case ModeSort:
 		m.mode = ModeNormal
 		m.BumpVersion()
-		return m.Notify("sort: "+m.input.Value(), "info")
+		return m.actionSort(m.input.Value())
 	}
 	return nil
 }

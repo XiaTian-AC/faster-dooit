@@ -1,6 +1,8 @@
 package app
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
@@ -191,12 +193,87 @@ func (m *Model) actionToggleComplete(_ *Model) tea.Cmd {
 	if t == nil {
 		return nil
 	}
-	t.Pending = !t.Pending
-	if err := m.store.SaveTodo(t); err != nil {
-		return noticeCmd("toggle failed: " + err.Error())
+	m.applyCompletionCascade(t)
+	m.saveTodoSubtree(t)
+	if err := m.RefreshFromStore(); err != nil {
+		return noticeCmd("reload failed: " + err.Error())
 	}
 	m.BumpVersion()
 	return nil
+}
+
+// applyCompletionCascade implements the reference update_hooks.py rules:
+//
+//	R1 completing a todo completes its whole subtree
+//	R2 a parent auto-completes only when all its children complete
+//	R3 reopening any child reopens the parent
+//	R4 a recurring todo never completes — due += recurrence, pending stays true
+func (m *Model) applyCompletionCascade(t *model.Todo) {
+	if t.Pending {
+		// completing
+		if t.Recurrence != nil {
+			nd := time.Now().Add(*t.Recurrence)
+			if t.Due != nil {
+				nd = t.Due.Add(*t.Recurrence)
+			}
+			t.Due = &nd
+			// R4: a recurring todo never completes — due advances and it
+			// stays pending. Only its subtree completes (R1), matching the
+			// reference update_hooks ordering.
+			for _, c := range t.Todos {
+				c.SetSubtreePending(false)
+			}
+		} else {
+			t.Pending = false
+			t.SetSubtreePending(false) // R1
+		}
+		t.ParentAutoComplete() // R2
+	} else {
+		t.Pending = true
+		t.ReopenParents() // R3
+	}
+}
+
+// saveTodoSubtree persists t and every descendant.
+func (m *Model) saveTodoSubtree(t *model.Todo) {
+	_ = m.store.SaveTodo(t)
+	for _, c := range t.Todos {
+		m.saveTodoSubtree(c)
+	}
+}
+
+// actionSort sorts the current model's siblings by field (or reverses),
+// then persists the new order.
+func (m *Model) actionSort(field string) tea.Cmd {
+	if m.focus == PaneWorkspace {
+		ws := m.selectedWorkspaceByCursor()
+		if ws == nil || ws.IsRoot {
+			return nil
+		}
+		ws.SortSiblings(field, field == "reverse")
+		m.persistSiblingOrder()
+	} else {
+		t := m.selectedTodo()
+		if t == nil {
+			return nil
+		}
+		t.SortSiblings(field, field == "reverse")
+		m.persistSiblingOrder()
+	}
+	return nil
+}
+
+// persistSiblingOrder persists the current in-memory order for every
+// workspace and todo (topological), then reloads.
+func (m *Model) persistSiblingOrder() {
+	if err := m.store.ReorderAll(m.root); err != nil {
+		m.Notify("sort persist failed: "+err.Error(), "error")
+		return
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		m.Notify("sort persist failed: "+err.Error(), "error")
+	}
+	m.BumpVersion()
 }
 
 func (m *Model) actionIncreaseUrgency(_ *Model) tea.Cmd {
@@ -337,15 +414,185 @@ func (m *Model) actionCopyModel(_ *Model) tea.Cmd {
 	return nil
 }
 
-func (m *Model) actionPasteBelow(_ *Model) tea.Cmd {
+func (m *Model) actionPasteBelow(_ *Model) tea.Cmd { return m.paste("below") }
+
+func (m *Model) actionPasteAbove(_ *Model) tea.Cmd { return m.paste("above") }
+
+// paste clones the clipped subtree into the focused pane at the cursor,
+// one slot below/above the highlighted node. Cross-type paste (a workspace
+// into the todo tree or a todo into the workspace tree) is an error,
+// matching the reference paste_model_from_clipboard + the Eng review #16.
+func (m *Model) paste(position string) tea.Cmd {
 	if m.clipboard == nil {
-		return nil
+		return m.Notify("No model in clipboard", "error")
 	}
-	return noticeCmd("paste (skeleton): " + m.clipboard.kind)
+	if m.focus == PaneWorkspace {
+		return m.pasteWorkspace(position)
+	}
+	return m.pasteTodo(position)
 }
 
-func (m *Model) actionPasteAbove(_ *Model) tea.Cmd {
-	return m.actionPasteBelow(m)
+func (m *Model) pasteWorkspace(position string) tea.Cmd {
+	if m.clipboard.kind != "workspace" {
+		return m.Notify("cannot paste a todo into the workspace tree", "error")
+	}
+	src := findWorkspace(m.root, m.clipboard.id)
+	if src == nil {
+		return m.Notify("clipboard source not found", "error")
+	}
+	cur := m.selectedWorkspaceByCursor()
+	if cur == nil || cur.IsRoot {
+		return nil
+	}
+	parent := cur.Parent
+	if parent == nil {
+		return nil
+	}
+	sibs := parent.Children
+	idx := indexOfWorkspaceIn(sibs, cur)
+	if position == "below" {
+		idx++
+	}
+	clone := src.Clone()
+	clone.Parent = parent
+	clone.ParentID = &parent.ID
+	parent.Children = insertWorkspaceAt(sibs, idx, clone)
+	reindexWorkspaceSlice(parent.Children)
+	m.persistWorkspaceClone(clone)
+	return m.finishPaste()
+}
+
+func (m *Model) pasteTodo(position string) tea.Cmd {
+	if m.clipboard.kind != "todo" {
+		return m.Notify("cannot paste a workspace into the todo tree", "error")
+	}
+	src := findTodoInWorkspace(m.root, m.clipboard.id)
+	if src == nil {
+		return m.Notify("clipboard source not found", "error")
+	}
+	cur := m.selectedTodo()
+	if cur == nil {
+		ws := m.selectedWorkspace()
+		if ws == nil {
+			return nil
+		}
+		clone := src.Clone()
+		clone.ParentWorkspace = ws
+		clone.ParentWorkspaceID = &ws.ID
+		ws.Todos = append(ws.Todos, clone)
+		reindexTodoSlice(ws.Todos)
+		m.persistTodoClone(clone)
+		return m.finishPaste()
+	}
+	var clone *model.Todo
+	if cur.ParentTodo != nil {
+		sibs := cur.ParentTodo.Todos
+		idx := indexOfTodoIn(sibs, cur)
+		if position == "below" {
+			idx++
+		}
+		clone = src.Clone()
+		clone.ParentTodo = cur.ParentTodo
+		clone.ParentTodoID = &cur.ParentTodo.ID
+		cur.ParentTodo.Todos = insertTodoAt(sibs, idx, clone)
+		reindexTodoSlice(cur.ParentTodo.Todos)
+	} else if cur.ParentWorkspace != nil {
+		sibs := cur.ParentWorkspace.Todos
+		idx := indexOfTodoIn(sibs, cur)
+		if position == "below" {
+			idx++
+		}
+		clone = src.Clone()
+		clone.ParentWorkspace = cur.ParentWorkspace
+		clone.ParentWorkspaceID = &cur.ParentWorkspace.ID
+		cur.ParentWorkspace.Todos = insertTodoAt(sibs, idx, clone)
+		reindexTodoSlice(cur.ParentWorkspace.Todos)
+	} else {
+		return nil
+	}
+	m.persistTodoClone(clone)
+	return m.finishPaste()
+}
+
+// finishPaste persists the reindexed order of every sibling, reloads, and
+// invalidates renderer caches.
+func (m *Model) finishPaste() tea.Cmd {
+	if err := m.store.ReorderAll(m.root); err != nil {
+		return m.Notify("paste persist failed: "+err.Error(), "error")
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		return m.Notify("paste reload failed: "+err.Error(), "error")
+	}
+	m.BumpVersion()
+	return nil
+}
+
+// persistTodoClone saves a fresh cloned todo and every descendant, wiring
+// the new parent_todo_id as it descends (fresh IDs are INSERTed).
+func (m *Model) persistTodoClone(t *model.Todo) {
+	_ = m.store.SaveTodo(t)
+	for _, c := range t.Todos {
+		c.ParentTodoID = &t.ID
+		m.persistTodoClone(c)
+	}
+}
+
+// persistWorkspaceClone saves a fresh cloned workspace and every descendant
+// workspace + todo, wiring parent ids along the way.
+func (m *Model) persistWorkspaceClone(w *model.Workspace) {
+	_ = m.store.SaveWorkspace(w)
+	for _, c := range w.Children {
+		c.ParentID = &w.ID
+		m.persistWorkspaceClone(c)
+	}
+	for _, t := range w.Todos {
+		t.ParentWorkspaceID = &w.ID
+		m.persistTodoClone(t)
+	}
+}
+
+func indexOfWorkspaceIn(s []*model.Workspace, cur *model.Workspace) int {
+	for i, x := range s {
+		if x == cur {
+			return i
+		}
+	}
+	return 0
+}
+
+func indexOfTodoIn(s []*model.Todo, cur *model.Todo) int {
+	for i, x := range s {
+		if x == cur {
+			return i
+		}
+	}
+	return 0
+}
+
+func insertWorkspaceAt(s []*model.Workspace, idx int, w *model.Workspace) []*model.Workspace {
+	s = append(s, nil)
+	copy(s[idx+1:], s[idx:])
+	s[idx] = w
+	return s
+}
+
+func insertTodoAt(s []*model.Todo, idx int, t *model.Todo) []*model.Todo {
+	s = append(s, nil)
+	copy(s[idx+1:], s[idx:])
+	s[idx] = t
+	return s
+}
+
+func reindexWorkspaceSlice(s []*model.Workspace) {
+	for i, x := range s {
+		x.OrderIndex = i
+	}
+}
+
+func reindexTodoSlice(s []*model.Todo) {
+	for i, t := range s {
+		t.OrderIndex = i
+	}
 }
 
 // ----- focus / edit entry -----

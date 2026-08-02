@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/XiaTian-AC/faster-dooit/internal/app"
 	"github.com/XiaTian-AC/faster-dooit/internal/lua"
 	"github.com/XiaTian-AC/faster-dooit/internal/store"
@@ -58,9 +60,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, "faster-dooit: load db:", err)
 		os.Exit(1)
 	}
-	// Skeleton entry: loads and prints the workspace count. The interactive
-	// TUI (tea.NewProgram) is wired in a later milestone.
-	fmt.Printf("faster-dooit skeleton loaded %d workspaces from %s\n", visibleTopLevel(model), cfg.dbPath)
+
+	// Launch the interactive TUI.
+	p := tea.NewProgram(model, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "faster-dooit: run:", err)
+		os.Exit(1)
+	}
 }
 
 type runConfig struct {
@@ -114,10 +120,4 @@ func defaultConfigPath() string {
 		dir = "."
 	}
 	return filepath.Join(dir, "faster-dooit", "config.lua")
-}
-
-// visibleTopLevel is a small helper to display the skeleton-load message
-// without exposing the internal app type.
-func visibleTopLevel(m *app.Model) int {
-	return len(m.VisibleWorkspaces())
 }
