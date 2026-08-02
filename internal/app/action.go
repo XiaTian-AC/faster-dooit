@@ -281,7 +281,9 @@ func (m *Model) actionIncreaseUrgency(_ *Model) tea.Cmd {
 	if t == nil {
 		return nil
 	}
-	t.Urgency++
+	if t.Urgency < 5 {
+		t.Urgency++
+	}
 	if err := m.store.SaveTodo(t); err != nil {
 		return noticeCmd("urgency failed: " + err.Error())
 	}

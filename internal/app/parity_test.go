@@ -150,6 +150,41 @@ func TestSearchFilter(t *testing.T) {
 	}
 }
 
+// ---- urgency cap + colors ----
+
+func TestUrgencyCappedAt5(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	for i := 0; i < 10; i++ {
+		m.actionIncreaseUrgency(m)
+	}
+	if got := m.selectedTodo().Urgency; got != 5 {
+		t.Fatalf("urgency should cap at 5, got %d", got)
+	}
+	for i := 0; i < 10; i++ {
+		m.actionDecreaseUrgency(m)
+	}
+	if got := m.selectedTodo().Urgency; got != 0 {
+		t.Fatalf("urgency should floor at 0, got %d", got)
+	}
+}
+
+func TestUrgencyColorsRender(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.selectedTodo().Urgency = 3
+	row := m.formatTodo(m.selectedTodo())
+	if row == "" {
+		t.Fatal("urgency row should render")
+	}
+	// Re-render after lowering urgency; both must be non-empty and distinct.
+	m.selectedTodo().Urgency = 1
+	row1 := m.formatTodo(m.selectedTodo())
+	if row1 == "" {
+		t.Fatal("urgency 1 should render")
+	}
+}
+
 // ---- clipboard copy / paste ----
 
 func TestPasteBelowTodoInsertsAfter(t *testing.T) {

@@ -15,6 +15,20 @@ type Theme struct {
 	Yellow      string
 	Orange      string
 	Red         string
+
+	// UrgencyColors maps urgency levels 1..5 to a color hex. Index 0 is the
+	// color for urgency 1. Empty when config.lua does not define it (callers
+	// fall back to built-in defaults).
+	UrgencyColors []string
+}
+
+// UrgencyColor returns the hex color for an urgency level (1-based), or the
+// Orange fallback when out of range / unconfigured.
+func (t Theme) UrgencyColor(level int) string {
+	if level >= 1 && level <= len(t.UrgencyColors) {
+		return t.UrgencyColors[level-1]
+	}
+	return t.Orange
 }
 
 // Color returns the raw hex for a named color, falling back to Primary.

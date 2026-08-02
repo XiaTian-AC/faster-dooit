@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	glua "github.com/yuin/gopher-lua"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
@@ -14,28 +15,37 @@ import (
 // The 1s clock and bar refresh are decoupled from this cache: the clock
 // never bumps the version, so row caches are not invalidated every second.
 
+// defaultUrgencyColors is the built-in palette for urgency levels 1..5,
+// used when config.lua does not define api.vars.urgency_colors.
+var defaultUrgencyColors = []string{"#A3BE8C", "#EBCB8B", "#D08770", "#BF616A", "#FF5C5C"}
+
 // appTheme returns the active theme (from config.lua, or Nord defaults).
 func (m *Model) appTheme() theme.Theme {
 	t := theme.Theme{
-		Primary:     "#8FBCBB",
-		Secondary:   "#81A1C1",
-		Background:  "#2E3440",
-		Background1: "#3B4252",
-		Green:       "#A3BE8C",
-		Yellow:      "#EBCB8B",
-		Orange:      "#D08770",
-		Red:         "#BF616A",
+		Primary:       "#8FBCBB",
+		Secondary:     "#81A1C1",
+		Background:    "#2E3440",
+		Background1:   "#3B4252",
+		Green:         "#A3BE8C",
+		Yellow:        "#EBCB8B",
+		Orange:        "#D08770",
+		Red:           "#BF616A",
+		UrgencyColors: defaultUrgencyColors,
 	}
 	if m.luaCfg != nil {
 		t = theme.Theme{
-			Primary:     m.luaCfg.Theme.Primary,
-			Secondary:   m.luaCfg.Theme.Secondary,
-			Background:  m.luaCfg.Theme.Background,
-			Background1: m.luaCfg.Theme.Background1,
-			Green:       m.luaCfg.Theme.Green,
-			Yellow:      m.luaCfg.Theme.Yellow,
-			Orange:      m.luaCfg.Theme.Orange,
-			Red:         m.luaCfg.Theme.Red,
+			Primary:       m.luaCfg.Theme.Primary,
+			Secondary:     m.luaCfg.Theme.Secondary,
+			Background:    m.luaCfg.Theme.Background,
+			Background1:   m.luaCfg.Theme.Background1,
+			Green:         m.luaCfg.Theme.Green,
+			Yellow:        m.luaCfg.Theme.Yellow,
+			Orange:        m.luaCfg.Theme.Orange,
+			Red:           m.luaCfg.Theme.Red,
+			UrgencyColors: m.luaCfg.Theme.UrgencyColors,
+		}
+		if len(t.UrgencyColors) == 0 {
+			t.UrgencyColors = defaultUrgencyColors
 		}
 	}
 	return t
@@ -177,7 +187,8 @@ func (m *Model) formatTodoColumn(field string, t *model.Todo) string {
 		if t.Urgency == 0 {
 			return ""
 		}
-		return th.Style("orange").Render("!" + itoa(t.Urgency))
+		col := m.appTheme().UrgencyColor(t.Urgency)
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(col)).Render("!" + itoa(t.Urgency))
 	case "effort":
 		if t.Effort == 0 {
 			return ""

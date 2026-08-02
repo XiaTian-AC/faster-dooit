@@ -25,6 +25,10 @@ type Theme struct {
 	Yellow      string
 	Orange      string
 	Red         string
+
+	// UrgencyColors maps urgency levels 1..5 to colors, read from
+	// api.vars.urgency_colors (index 0 = urgency 1).
+	UrgencyColors []string
 }
 
 // Layouts holds the column order for each pane.
@@ -82,6 +86,7 @@ type Runtime struct {
 	Timers      []Timer
 
 	themeTable *lua.LTable // reference to api.vars.theme for readTheme
+	varsTable  *lua.LTable // reference to api.vars for readTheme
 }
 
 // actionNames are the string constants exposed on the api table (so
@@ -192,12 +197,13 @@ func (rt *Runtime) installAPI(L *lua.LState) {
 	L.SetField(dashboard, "set", L.NewFunction(rt.dashboardSet))
 	L.SetField(api, "dashboard", dashboard)
 
-	// vars.theme
+	// vars.theme + vars.urgency_colors
 	vars := L.NewTable()
 	theme := L.NewTable()
 	L.SetField(vars, "theme", theme)
 	L.SetField(api, "vars", vars)
 	rt.themeTable = theme
+	rt.varsTable = vars
 
 	// Action name constants: api.move_down == "move_down", etc.
 	for _, name := range actionNames {
@@ -368,7 +374,8 @@ func (rt *Runtime) timer(L *lua.LState) int {
 	return 0
 }
 
-// readTheme copies color values out of api.vars.theme after eval.
+// readTheme copies color values out of api.vars.theme and
+// api.vars.urgency_colors after eval.
 func (rt *Runtime) readTheme() {
 	L := rt.L
 	get := func(k string) string {
@@ -390,6 +397,21 @@ func (rt *Runtime) readTheme() {
 		Yellow:      get("yellow"),
 		Orange:      get("orange"),
 		Red:         get("red"),
+	}
+
+	// api.vars.urgency_colors = { "#A3BE8C", ... } — a 1-based Lua array.
+	if rt.varsTable != nil {
+		if uc, ok := L.GetField(rt.varsTable, "urgency_colors").(*lua.LTable); ok {
+			var colors []string
+			uc.ForEach(func(_, v lua.LValue) {
+				if s, ok := v.(lua.LString); ok && s != lua.LString("") {
+					colors = append(colors, string(s))
+				}
+			})
+			if len(colors) > 0 {
+				rt.Theme.UrgencyColors = colors
+			}
+		}
 	}
 }
 

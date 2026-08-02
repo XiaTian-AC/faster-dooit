@@ -16,6 +16,9 @@ api.vars.theme.yellow = "#EBCB8B"
 api.vars.theme.orange = "#D08770"
 api.vars.theme.red = "#BF616A"
 
+-- Urgency colors for levels 1..5 (index 1 = urgency 1). Customize freely.
+api.vars.urgency_colors = { "#A3BE8C", "#EBCB8B", "#D08770", "#BF616A", "#FF5C5C" }
+
 -- Column layout for each pane.
 api.layouts.workspace_layout = { "description" }
 api.layouts.todo_layout = { "status", "description", "due", "urgency" }
