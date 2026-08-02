@@ -34,13 +34,13 @@ func (m *Model) defaultActions() map[string]Action {
 		"paste_above":            wrap(m.actionPasteAbove),
 		"switch_focus":           wrap(m.actionSwitchFocus),
 		"enter_edit_description": wrap(m.actionEnterEditDescription),
-		"start_search":           wrap(m.placeholder("start_search")),
-		"start_sort":             wrap(m.placeholder("start_sort")),
-		"edit_description":       wrap(m.placeholder("edit_description")),
-		"edit_due":               wrap(m.placeholder("edit_due")),
-		"edit_recurrence":        wrap(m.placeholder("edit_recurrence")),
-		"edit_effort":            wrap(m.placeholder("edit_effort")),
-		"show_help":              wrap(m.placeholder("show_help")),
+		"start_search":           wrap(m.actionStartSearch),
+		"start_sort":             wrap(m.actionStartSort),
+		"edit_description":       wrap(m.actionEditDescription),
+		"edit_due":               wrap(m.actionEditDue),
+		"edit_recurrence":        wrap(m.actionEditRecurrence),
+		"edit_effort":            wrap(m.actionEditEffort),
+		"show_help":              wrap(m.actionShowHelp),
 		"quit":                   wrap(m.actionQuit),
 	}
 }
@@ -179,25 +179,9 @@ func (m *Model) actionAddChild(_ *Model) tea.Cmd {
 }
 
 func (m *Model) actionDelete(_ *Model) tea.Cmd {
-	if m.focus == PaneWorkspace {
-		ws := m.selectedWorkspaceByCursor()
-		if ws == nil || ws.IsRoot {
-			return nil
-		}
-		if err := m.store.DeleteWorkspace(ws.ID); err != nil {
-			return noticeCmd("delete failed: " + err.Error())
-		}
-	} else {
-		t := m.selectedTodo()
-		if t == nil {
-			return nil
-		}
-		if err := m.store.DeleteTodo(t.ID); err != nil {
-			return noticeCmd("delete failed: " + err.Error())
-		}
-	}
-	m.RefreshFromStore()
-	return nil
+	// Deletion goes through the confirm dialog (default-NO, matching the
+	// reference). The actual delete runs in doDelete after confirm.
+	return m.StartConfirm()
 }
 
 // ----- toggle complete / urgency -----
@@ -376,7 +360,20 @@ func (m *Model) actionSwitchFocus(_ *Model) tea.Cmd {
 }
 
 func (m *Model) actionEnterEditDescription(_ *Model) tea.Cmd {
-	m.mode = ModeInsert
+	return m.StartEdit("description")
+}
+
+func (m *Model) actionEditDescription(_ *Model) tea.Cmd { return m.StartEdit("description") }
+func (m *Model) actionEditDue(_ *Model) tea.Cmd         { return m.StartEdit("due") }
+func (m *Model) actionEditRecurrence(_ *Model) tea.Cmd  { return m.StartEdit("recurrence") }
+func (m *Model) actionEditEffort(_ *Model) tea.Cmd      { return m.StartEdit("effort") }
+
+func (m *Model) actionStartSearch(_ *Model) tea.Cmd { return m.StartSearch() }
+func (m *Model) actionStartSort(_ *Model) tea.Cmd   { return m.StartSort() }
+
+func (m *Model) actionShowHelp(_ *Model) tea.Cmd {
+	m.helpVisible = !m.helpVisible
+	m.bumpVersion()
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
@@ -49,9 +50,24 @@ type Model struct {
 	// cache by it. Decoupled from the 1s clock tick.
 	version int64
 
-	// notification message displayed in the status line (Task 4 wires this
-	// into the real notification bar; for the skeleton it's just a field).
-	notice string
+	// notification message displayed in the status line.
+	notice      string
+	noticeLevel string
+
+	// input is the active text input overlay for INSERT/SEARCH/SORT modes.
+	input textinput.Model
+
+	// editField is the model field being edited (description/due/effort/...).
+	editField string
+
+	// filter is the active search filter (Task 6 narrows the visible list).
+	filter string
+
+	// confirmCallback runs when the confirm dialog is confirmed (y/enter).
+	confirmCallback func() tea.Cmd
+
+	// helpVisible toggles the help screen (see actionShowHelp).
+	helpVisible bool
 
 	// quitting is set on ctrl+q to break out of the Update loop.
 	quitting bool

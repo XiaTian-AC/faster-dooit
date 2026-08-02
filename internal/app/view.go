@@ -29,6 +29,11 @@ func (m *Model) View() string {
 		return "loading…\n"
 	}
 
+	// Help screen overlays the whole view.
+	if m.helpVisible {
+		return lipgloss.JoinVertical(lipgloss.Left, m.HelpView(), m.renderStatusBar())
+	}
+
 	paneW := m.width / 4 // workspace pane ≈ 20% per UI 规格 #1
 	if paneW < 16 {
 		paneW = 16
@@ -109,17 +114,6 @@ func (m *Model) renderTodoPane(w int) string {
 		lines = append(lines, fmt.Sprintf("%s%s[%s] %s%s", marker, indent, glyph, truncate(t.Description, 60), urgency))
 	}
 	return strings.Join(lines, "\n")
-}
-
-func (m *Model) renderStatusBar() string {
-	mode := string(m.mode)
-	left := fmt.Sprintf(" %s ", mode)
-	right := ""
-	if m.notice != "" {
-		right = " " + m.notice + " "
-	}
-	pad := strings.Repeat(" ", max(0, m.width-len(left)-len(right)))
-	return statusStyle.Render(left + pad + right)
 }
 
 func truncate(s string, n int) string {

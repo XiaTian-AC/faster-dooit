@@ -5,8 +5,9 @@ import (
 )
 
 // Update implements tea.Model. Routes messages through the key manager
-// (when in NORMAL mode and a KeyMsg arrives), updates the model, and
-// returns the bubbletea.Cmd produced by the resolved action.
+// (in NORMAL mode) or the active input overlay (in INSERT/SEARCH/SORT/
+// CONFIRM modes), updates the model, and returns the tea.Cmd produced by
+// the resolved action.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -21,33 +22,39 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Ctrl-key shortcuts handled here (the keyManager is rune-based).
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyCtrlQ:
-			if a, ok := m.actions["quit"]; ok {
-				return m, a(m)
-			}
-			return m, tea.Quit
-		case tea.KeyCtrlS:
-			if a, ok := m.actions["start_sort"]; ok {
-				return m, a(m)
-			}
+		// Global quit shortcuts work in every mode.
+		if msg.Type == tea.KeyCtrlC || msg.Type == tea.KeyCtrlQ {
+			return m, m.actions["quit"](m)
 		}
+
+		// Non-NORMAL modes route keys into the input overlay / confirm.
 		if m.mode != ModeNormal {
-			// input overlays (Task 4) handle non-NORMAL modes; for now
-			// the skeleton just falls back to escape-to-normal.
-			if msg.Type == tea.KeyEsc {
-				m.mode = ModeNormal
-			}
+			return m, m.handleModeKey(msg)
+		}
+
+		// NORMAL-mode special keys.
+		switch msg.Type {
+		case tea.KeyTab:
+			return m, m.actions["switch_focus"](m)
+		case tea.KeyEnter:
+			return m, m.actions["enter_edit_description"](m)
+		case tea.KeyCtrlS:
+			return m, m.actions["start_sort"](m)
+		case tea.KeyEsc:
+			m.keys.escape()
 			return m, nil
 		}
 
-		action := m.keys.feed(msg.Runes[0])
-		if action == "" {
-			return m, nil
-		}
-		if a, ok := m.actions[action]; ok {
-			return m, a(m)
+		// Rune dispatch through the key manager (handles single keys and
+		// chords such as gg / xx).
+		if len(msg.Runes) > 0 {
+			action := m.keys.feed(msg.Runes[0])
+			if action == "" {
+				return m, nil
+			}
+			if a, ok := m.actions[action]; ok {
+				return m, a(m)
+			}
 		}
 	}
 	return m, nil
