@@ -117,7 +117,9 @@ func (s *Store) LoadAll() (*Workspace, error) {
 	}
 	defer todoRows.Close()
 
-	todosByWS := make(map[int64][]*Todo)
+	// First pass: collect every todo flat so we can resolve parent pointers
+	// in a second pass (the todos may be intermixed with their parents).
+	todoByID := make(map[int64]*Todo)
 	for todoRows.Next() {
 		var t Todo
 		var due sql.NullString
@@ -142,26 +144,40 @@ func (s *Store) LoadAll() (*Workspace, error) {
 		if pws.Valid {
 			id := pws.Int64
 			t.ParentWorkspaceID = &id
-			todosByWS[id] = append(todosByWS[id], &t)
 		}
 		if ptd.Valid {
 			id := ptd.Int64
 			t.ParentTodoID = &id
 		}
+		todoByID[t.ID] = &t
 	}
 	if err := todoRows.Err(); err != nil {
 		return nil, err
 	}
 
-	for wsID, todos := range todosByWS {
-		if ws, ok := byID[wsID]; ok {
-			ws.Todos = todos
+	// Second pass: link todos into the workspace / todo trees.
+	for _, t := range todoByID {
+		if t.ParentWorkspaceID != nil {
+			if ws, ok := byID[*t.ParentWorkspaceID]; ok {
+				ws.Todos = append(ws.Todos, t)
+				t.ParentWorkspace = ws
+				continue
+			}
+		}
+		if t.ParentTodoID != nil {
+			if p, ok := todoByID[*t.ParentTodoID]; ok {
+				p.Todos = append(p.Todos, t)
+				t.ParentTodo = p
+			}
 		}
 	}
+
+	// Wire up Workspace.Parent + Children.
 	for _, w := range ordered {
 		if w.ParentID != nil {
 			if parent, ok := byID[*w.ParentID]; ok {
 				parent.Children = append(parent.Children, w)
+				w.Parent = parent
 			}
 		}
 	}
