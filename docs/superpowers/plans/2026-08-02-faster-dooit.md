@@ -1035,3 +1035,9 @@ main.go ──► internal/lua ──► config.lua（gopher-lua 求值 → Runt
 1. **「别过度宣称 parity/性能」**：CEO #2/#5、Eng #6/#17、DX #12/#13 独立指出——Lua 表面、日期解析、循环输入、启动计时、poll_dooit_db 取舍都需要如实标注边界。已统一处理：所有 "完整对齐" 改为精确边界声明，启动计时改用 `go build` 后计时 + 原版基线。
 2. **Lua 桥的正确性**：CEO #3、Eng #9、DX #6/#7 独立指出 Lua 桥（formatter 透传 api、fn 命名、bar 值持有、合法 Lua 语法、事件名字符串）。已统一处理并给出实施指引。
 3. **先落库后改内存**：Eng #10 与 DX #8 一致指向同一回滚策略——已确定为单一方案。
+
+### VERDICT
+
+**APPROVED**（2026-08-02，用户批准）。两用户挑战（重写方向 #2、公开仓库 #6）按用户原始方向成立。53 项自动决策全部采纳并已并入计划/设计文档。进入实现。
+
+`NO UNRESOLVED DECISIONS`
