@@ -104,6 +104,8 @@ func defaultKeyBindings() map[string]any {
 		"/":   "start_search",
 		"?":   "show_help",
 		"tab": "switch_focus",
+		"h":   "switch_focus",
+		"l":   "switch_focus",
 		"\r":  "enter_edit_description",
 
 		// chords: nested map {next-rune -> action or sub-map}

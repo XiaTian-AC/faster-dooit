@@ -21,7 +21,7 @@ var helpKeyRows = [][2]string{
 	{"= / +  - / _", "increase / decrease urgency"},
 	{"/", "search"},
 	{"ctrl+s", "sort"},
-	{"tab", "switch pane"},
+	{"h / l / tab", "switch pane"},
 	{"enter", "edit description"},
 	{"?", "show this help"},
 	{"ctrl+c / ctrl+q", "quit"},

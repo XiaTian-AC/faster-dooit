@@ -32,6 +32,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.actions["quit"](m)
 		}
 
+		// While help is shown, swallow every other key and return to NORMAL.
+		if m.helpVisible {
+			m.helpVisible = false
+			m.BumpVersion()
+			return m, nil
+		}
+
 		// Non-NORMAL modes route keys into the input overlay / confirm.
 		if m.mode != ModeNormal {
 			return m, m.handleModeKey(msg)
