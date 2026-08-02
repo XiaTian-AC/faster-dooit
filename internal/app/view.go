@@ -56,7 +56,17 @@ func (m *Model) View() string {
 	}
 
 	status := m.renderStatusBar()
-	return lipgloss.JoinVertical(lipgloss.Left, combined, status)
+	content := lipgloss.JoinVertical(lipgloss.Left, combined, status)
+
+	// Vertically center the two panes when they fit inside the terminal;
+	// fall back to top-aligned once the content overflows the height.
+	if m.height > 0 {
+		lines := strings.Count(content, "\n") + 1
+		if top := (m.height - lines) / 2; top > 0 {
+			content = strings.Repeat("\n", top) + content
+		}
+	}
+	return content
 }
 
 func (m *Model) renderWorkspacePane(w int) string {
@@ -76,8 +86,9 @@ func (m *Model) renderWorkspacePane(w int) string {
 		if i == m.WorkspaceCursor && m.focus == PaneWorkspace {
 			marker = th.Style("green").Render("> ")
 		}
+		// indent before marker so the cursor aligns with the row's text column.
 		indent := strings.Repeat("  ", ws[i].NestLevel())
-		lines = append(lines, marker+indent+m.RenderRow(PaneWorkspace, i))
+		lines = append(lines, indent+marker+m.RenderRow(PaneWorkspace, i))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -105,8 +116,9 @@ func (m *Model) renderTodoPane(w int) string {
 		if i == m.TodoCursor && m.focus == PaneTodo {
 			marker = th.Style("green").Render("> ")
 		}
+		// indent before marker so the cursor aligns with the row's text column.
 		indent := strings.Repeat("  ", todos[i].NestLevel())
-		lines = append(lines, marker+indent+m.RenderRow(PaneTodo, i))
+		lines = append(lines, indent+marker+m.RenderRow(PaneTodo, i))
 	}
 	return strings.Join(lines, "\n")
 }
