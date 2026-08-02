@@ -1,4 +1,4 @@
-# Better-Dooit 设计文档
+# Faster-Dooit 设计文档
 
 > 状态：已获用户批准（2026-08-02）。基于原版 [dooit](https://github.com/dooit-org/dooit) v3.3.4 的全面重写。
 
@@ -26,7 +26,7 @@
 | 配置/扩展 | **Lua**（`config.lua` 镜像原版 `default_config.py` 的 `api` 表面） |
 | 数据 | **全新 schema，不迁移旧库** |
 | 功能范围 | **完整对齐原版 dooit** |
-| Git 约束 | 所有 git 命令在 `better-dooit/` 目录内执行；完成后创建**公开**仓库 `better-dooit` 并 push |
+| Git 约束 | 所有 git 命令在 `faster-dooit/` 目录内执行；完成后创建**公开**仓库 `faster-dooit` 并 push |
 
 ### 为什么 Go 而非 Rust
 
@@ -41,7 +41,7 @@
 ### 目录结构
 
 ```
-better-dooit/
+faster-dooit/
 ├── go.mod
 ├── main.go                    # 入口：加载配置 → 启动 bubbletea
 ├── config.lua                 # 默认配置（镜像 dooit default_config.py）
@@ -122,7 +122,7 @@ api.keys.set(["=", "+"], api.increase_urgency)
 api.layouts.todo_layout = {"status", "description", "due", "urgency"}
 api.formatter.todos.status.add(todo_status_formatter)   -- 返回 {text, style}
 api.bar.set({ get_mode, clock, get_user })
-api.dashboard.set({"Welcome to Better Dooit!", ""})
+api.dashboard.set({"Welcome to Faster Dooit!", ""})
 subscribe(ModeChanged, function(api, ev) ... end)
 timer(1, function(api) ... end)
 ```

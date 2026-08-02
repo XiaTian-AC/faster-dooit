@@ -1,22 +1,22 @@
-# Better-Dooit Implementation Plan
+# Faster-Dooit Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 用 Go + bubbletea 在 `better-dooit/` 下全面重写 dooit（TUI 任务管理器），功能完整对齐原版，启动 < 200ms、万级节点无感知按键延迟。
+**Goal:** 用 Go + bubbletea 在 `faster-dooit/` 下全面重写 dooit（TUI 任务管理器），功能完整对齐原版，启动 < 200ms、万级节点无感知按键延迟。
 
 **Architecture:** Elm 架构（bubbletea）。启动时一次性把 SQLite 整库读入内存模型，所有操作走内存，写操作同步落库；`view()` 只渲染视口内行。Lua（gopher-lua）配置文件镜像原版 `api` 表面（keys/layouts/formatter/bar/dashboard/subscribe/timer）。两栏树 + 六种模式 + 输入覆盖层。
 
 **Tech Stack:** Go 1.22+、bubbletea、bubbles/textinput、lipgloss、gopher-lua、modernc.org/sqlite、dateparse（自写）、Go 标准测试。
 
-**Spec:** `docs/superpowers/specs/2026-08-02-better-dooit-design.md`
+**Spec:** `docs/superpowers/specs/2026-08-02-faster-dooit-design.md`
 
 ## Global Constraints
 
-- Go module 名：`github.com/XiaTian-AC/better-dooit`
+- Go module 名：`github.com/XiaTian-AC/faster-dooit`
 - 最低 Go 版本：1.22
 - 存储：modernc.org/sqlite（纯 Go，无 CGO）；不引入 ORM，用 `database/sql`
 - 依赖锁定：`go.mod` 提交进版本库；构建产物为单一二进制
-- 所有 git 命令在 `better-dooit/` 目录内执行（`git -C F:\Workspace\Project\dooit\better-dooit ...`）
+- 所有 git 命令在 `faster-dooit/` 目录内执行（`git -C F:\Workspace\Project\dooit\faster-dooit ...`）
 - 配置：`config.lua`，通过 gopher-lua 求值；默认配置镜像原版 `default_config.py` 行为
 - 数据：全新 schema，不迁移旧库
 - 模式常量：`NORMAL` / `INSERT` / `DATE` / `SEARCH` / `SORT` / `CONFIRM`
@@ -49,8 +49,8 @@
 - [ ] **Step 1: 初始化 module 与依赖**
 
 ```bash
-cd F:\Workspace\Project\dooit\better-dooit
-go mod init github.com/XiaTian-AC/better-dooit
+cd F:\Workspace\Project\dooit\faster-dooit
+go mod init github.com/XiaTian-AC/faster-dooit
 go get modernc.org/sqlite
 ```
 
@@ -275,8 +275,8 @@ Expected: PASS
 - [ ] **Step 10: Commit**
 
 ```bash
-git -C F:\Workspace\Project\dooit\better-dooit add go.mod go.sum internal/
-git -C F:\Workspace\Project\dooit\better-dooit commit -m "feat: scaffold model and sqlite store"
+git -C F:\Workspace\Project\dooit\faster-dooit add go.mod go.sum internal/
+git -C F:\Workspace\Project\dooit\faster-dooit commit -m "feat: scaffold model and sqlite store"
 ```
 
 ---
@@ -375,8 +375,8 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git -C F:\Workspace\Project\dooit\better-dooit add internal/dateparse/
-git -C F:\Workspace\Project\dooit\better-dooit commit -m "feat: natural language date parsing"
+git -C F:\Workspace\Project\dooit\faster-dooit add internal/dateparse/
+git -C F:\Workspace\Project\dooit\faster-dooit commit -m "feat: natural language date parsing"
 ```
 
 ---
@@ -412,8 +412,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/XiaTian-AC/better-dooit/internal/model"
-	"github.com/XiaTian-AC/better-dooit/internal/store"
+	"github.com/XiaTian-AC/faster-dooit/internal/model"
+	"github.com/XiaTian-AC/faster-dooit/internal/store"
 )
 
 func newTestApp(t *testing.T) *Model {
@@ -482,8 +482,8 @@ Expected: 应用可启动，基本导航与 CRUD 生效
 - [ ] **Step 6: Commit**
 
 ```bash
-git -C F:\Workspace\Project\dooit\better-dooit add main.go internal/app/
-git -C F:\Workspace\Project\dooit\better-dooit commit -m "feat: bubbletea skeleton with two-pane tree and CRUD"
+git -C F:\Workspace\Project\dooit\faster-dooit add main.go internal/app/
+git -C F:\Workspace\Project\dooit\faster-dooit commit -m "feat: bubbletea skeleton with two-pane tree and CRUD"
 ```
 
 ---
@@ -562,8 +562,8 @@ Expected: `i` 编辑描述、`d` 编辑日期（输入 `tomorrow` 生效）、`/
 - [ ] **Step 6: Commit**
 
 ```bash
-git -C F:\Workspace\Project\dooit\better-dooit add internal/app/
-git -C F:\Workspace\Project\dooit\better-dooit commit -m "feat: modes and input overlays for edit/search/sort/confirm/help"
+git -C F:\Workspace\Project\dooit\faster-dooit add internal/app/
+git -C F:\Workspace\Project\dooit\faster-dooit commit -m "feat: modes and input overlays for edit/search/sort/confirm/help"
 ```
 
 ---
@@ -640,8 +640,8 @@ Expected: PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git -C F:\Workspace\Project\dooit\better-dooit add internal/lua/ config.lua main.go internal/app/app.go
-git -C F:\Workspace\Project\dooit\better-dooit commit -m "feat: lua config system with default config.lua"
+git -C F:\Workspace\Project\dooit\faster-dooit add internal/lua/ config.lua main.go internal/app/app.go
+git -C F:\Workspace\Project\dooit\faster-dooit commit -m "feat: lua config system with default config.lua"
 ```
 
 ---
@@ -718,8 +718,8 @@ Expected: 状态栏显示模式/时钟/用户名，todo 列按 status/descriptio
 - [ ] **Step 6: Commit**
 
 ```bash
-git -C F:\Workspace\Project\dooit\better-dooit add internal/theme/ internal/app/renderers.go internal/app/dashboard.go
-git -C F:\Workspace\Project\dooit\better-dooit commit -m "feat: layout, formatters, bars, dashboard, theme rendering"
+git -C F:\Workspace\Project\dooit\faster-dooit add internal/theme/ internal/app/renderers.go internal/app/dashboard.go
+git -C F:\Workspace\Project\dooit\faster-dooit commit -m "feat: layout, formatters, bars, dashboard, theme rendering"
 ```
 
 ---
@@ -782,15 +782,15 @@ Expected: 启动到界面 < 200ms（记录实测值）
 - [ ] **Step 6: Commit**
 
 ```bash
-git -C F:\Workspace\Project\dooit\better-dooit add README.md internal/app/benchmarks_test.go
-git -C F:\Workspace\Project\dooit\better-dooit commit -m "feat: parity polish, perf validation, README"
+git -C F:\Workspace\Project\dooit\faster-dooit add README.md internal/app/benchmarks_test.go
+git -C F:\Workspace\Project\dooit\faster-dooit commit -m "feat: parity polish, perf validation, README"
 ```
 
 ---
 
 ## 收尾（实现完成后，由本机执行）
 
-- 创建公开 GitHub 仓库 `better-dooit`（`gh repo create better-dooit --public --source F:\Workspace\Project\dooit\better-dooit --remote origin --push`）
+- 创建公开 GitHub 仓库 `faster-dooit`（`gh repo create faster-dooit --public --source F:\Workspace\Project\dooit\faster-dooit --remote origin --push`）
 - 确认 `git remote -v`、`git log --oneline` 正常
 
 ## 设计缺口（评审阶段标记，见 /autoplan 决策日志）
