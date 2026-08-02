@@ -40,3 +40,13 @@ func TestViewVerticallyCenters(t *testing.T) {
 		t.Fatalf("content should be vertically centered (leading blank rows missing), got:\n%q", v)
 	}
 }
+
+func TestInlineEditRendersOnCursorRow(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.StartEdit("description")
+	v := m.renderTodoPane(80)
+	if !strings.Contains(v, m.input.View()) {
+		t.Fatalf("input should render on the cursor row, got:\n%s", v)
+	}
+}

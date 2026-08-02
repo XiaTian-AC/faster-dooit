@@ -7,6 +7,44 @@ import (
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
 )
 
+// ---- default names + inline edit on create ----
+
+func TestAddSiblingDefaultsNameAndEdits(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.TodoCursor = 0
+	before := len(m.visibleTodos())
+	m.actionAddSibling(m)
+	if got := len(m.visibleTodos()); got != before+1 {
+		t.Fatalf("add_sibling should add one todo, got %d -> %d", before, got)
+	}
+	if m.mode != ModeInsert {
+		t.Fatalf("add_sibling should enter INSERT for inline edit, mode=%v", m.mode)
+	}
+	if m.input.Placeholder != "New task" {
+		t.Fatalf("input placeholder should be %q, got %q", "New task", m.input.Placeholder)
+	}
+	// Enter with empty input keeps the default name.
+	m.ConfirmEdit()
+	todo := m.selectedTodo()
+	if todo == nil || todo.Description != "New task" {
+		t.Fatalf("empty input should keep default name, got %+v", todo)
+	}
+}
+
+func TestCreateWorkspaceDefaultsNameAndEdits(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneWorkspace)
+	m.WorkspaceCursor = 0
+	m.actionAddSibling(m)
+	if m.mode != ModeInsert {
+		t.Fatalf("add workspace should enter INSERT, mode=%v", m.mode)
+	}
+	if m.input.Placeholder != "New workspace" {
+		t.Fatalf("input placeholder should be %q, got %q", "New workspace", m.input.Placeholder)
+	}
+}
+
 // ---- completion cascade (update_hooks.py parity) ----
 
 func TestCascadeCompleteSubtree(t *testing.T) {

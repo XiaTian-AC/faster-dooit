@@ -117,6 +117,34 @@ func (m *Model) actionGoToBottom(_ *Model) tea.Cmd {
 	return nil
 }
 
+// Default names assigned to freshly-created items so a new row is never an
+// invisible blank. The inline edit shows them as placeholder; leaving the
+// input empty on confirm keeps them.
+const (
+	defaultTaskName      = "New task"
+	defaultWorkspaceName = "New workspace"
+)
+
+// indexOfTodoByID returns the index of the todo with the given id, or -1.
+func indexOfTodoByID(todos []*model.Todo, id int64) int {
+	for i, t := range todos {
+		if t.ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// indexOfWorkspaceByID returns the index of the workspace with the given id.
+func indexOfWorkspaceByID(ws []*model.Workspace, id int64) int {
+	for i, w := range ws {
+		if w.ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
 // ----- CRUD: add / delete -----
 
 func (m *Model) actionAddSibling(_ *Model) tea.Cmd {
@@ -128,45 +156,49 @@ func (m *Model) actionAddSibling(_ *Model) tea.Cmd {
 		return m.addWorkspaceChild(parent)
 	}
 	todo := m.selectedTodo()
+	var newTodo *model.Todo
 	if todo == nil {
 		ws := m.selectedWorkspace()
 		if ws == nil {
 			return nil
 		}
-		newTodo := &model.Todo{Description: "", OrderIndex: len(ws.Todos), Pending: true, ParentWorkspaceID: &ws.ID}
-		if err := m.store.SaveTodo(newTodo); err != nil {
-			return noticeCmd("add sibling failed: " + err.Error())
-		}
-		m.RefreshFromStore()
-		return nil
-	}
-	parentTodo := todo.ParentTodo
-	if parentTodo != nil {
-		newTodo := &model.Todo{Description: "", Pending: true, OrderIndex: len(parentTodo.Todos), ParentTodoID: &parentTodo.ID}
+		newTodo = &model.Todo{Description: defaultTaskName, OrderIndex: len(ws.Todos), Pending: true, ParentWorkspaceID: &ws.ID}
 		if err := m.store.SaveTodo(newTodo); err != nil {
 			return noticeCmd("add sibling failed: " + err.Error())
 		}
 	} else {
-		ws := todo.ParentWorkspace
-		newTodo := &model.Todo{Description: "", Pending: true, OrderIndex: len(ws.Todos), ParentWorkspaceID: &ws.ID}
-		if err := m.store.SaveTodo(newTodo); err != nil {
-			return noticeCmd("add sibling failed: " + err.Error())
+		parentTodo := todo.ParentTodo
+		if parentTodo != nil {
+			newTodo = &model.Todo{Description: defaultTaskName, Pending: true, OrderIndex: len(parentTodo.Todos), ParentTodoID: &parentTodo.ID}
+			if err := m.store.SaveTodo(newTodo); err != nil {
+				return noticeCmd("add sibling failed: " + err.Error())
+			}
+		} else {
+			ws := todo.ParentWorkspace
+			newTodo = &model.Todo{Description: defaultTaskName, Pending: true, OrderIndex: len(ws.Todos), ParentWorkspaceID: &ws.ID}
+			if err := m.store.SaveTodo(newTodo); err != nil {
+				return noticeCmd("add sibling failed: " + err.Error())
+			}
 		}
 	}
 	m.RefreshFromStore()
-	return nil
+	// Position the cursor on the new item and open the inline edit.
+	m.TodoCursor = max(0, indexOfTodoByID(m.visibleTodos(), newTodo.ID))
+	return m.startInlineEdit(defaultTaskName)
 }
 
 func (m *Model) addWorkspaceChild(parent *model.Workspace) tea.Cmd {
 	if parent == nil {
 		return nil
 	}
-	ws := &model.Workspace{Description: "", OrderIndex: len(parent.Children), ParentID: &parent.ID}
+	ws := &model.Workspace{Description: defaultWorkspaceName, OrderIndex: len(parent.Children), ParentID: &parent.ID}
 	if err := m.store.SaveWorkspace(ws); err != nil {
 		return noticeCmd("add workspace failed: " + err.Error())
 	}
 	m.RefreshFromStore()
-	return nil
+	m.WorkspaceCursor = max(0, indexOfWorkspaceByID(m.VisibleWorkspaces(), ws.ID))
+	m.selectedWorkspaceID = ws.ID // show the new workspace in the todo pane
+	return m.startInlineEdit(defaultWorkspaceName)
 }
 
 func (m *Model) actionAddChild(_ *Model) tea.Cmd {
@@ -595,6 +627,17 @@ func reindexTodoSlice(s []*model.Todo) {
 	for i, t := range s {
 		t.OrderIndex = i
 	}
+}
+
+// startInlineEdit enters INSERT mode for a freshly-created item, showing the
+// given default name as the input placeholder (so an empty confirm keeps it).
+func (m *Model) startInlineEdit(placeholder string) tea.Cmd {
+	m.editField = "description"
+	m.editPlaceholder = placeholder
+	m.input = newInput(placeholder)
+	m.mode = ModeInsert
+	m.BumpVersion()
+	return nil
 }
 
 // ----- focus / edit entry -----

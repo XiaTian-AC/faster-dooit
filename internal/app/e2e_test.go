@@ -74,21 +74,23 @@ func TestE2EKeypressToPersistence(t *testing.T) {
 	}
 }
 
-// TestE2EAddSiblingAndEdit walks add_sibling (a) → enter edit → type → enter
-// and confirms the new empty todo is inserted and its description persisted.
+// TestE2EAddSiblingAndEdit walks add_sibling (a) → type → enter and confirms
+// the new todo is inserted, starts an inline edit, and its description
+// persists.
 func TestE2EAddSiblingAndEdit(t *testing.T) {
 	m := newTestApp(t)
 	m.SetFocus(PaneTodo)
 	m.TodoCursor = 0
 
-	// a → add_sibling creates an empty todo after the current one.
+	// a → add_sibling creates a new todo and opens an inline edit on it.
 	next, _ := m.Update(keyMsg('a'))
 	m = cast(next)
-	if m.mode != ModeNormal {
-		t.Fatalf("add_sibling should stay in NORMAL, got %v", m.mode)
+	if m.mode != ModeInsert {
+		t.Fatalf("add_sibling should enter INSERT for inline edit, got %v", m.mode)
 	}
-	// The store is refreshed; the cursor still points at the original, so the
-	// new sibling is the last visible todo.
+	if m.input.Placeholder != "New task" {
+		t.Fatalf("new todo placeholder should be %q, got %q", "New task", m.input.Placeholder)
+	}
 	if err := m.RefreshFromStore(); err != nil {
 		t.Fatal(err)
 	}
@@ -97,15 +99,15 @@ func TestE2EAddSiblingAndEdit(t *testing.T) {
 		t.Fatalf("want 2 todos after add_sibling, got %d", len(todos))
 	}
 
-	// Move to the newly added sibling and edit its description.
-	m.TodoCursor = 1
-	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m = cast(next)
+	// Type a real name, replacing the placeholder default.
 	for _, r := range "new task" {
 		m.Update(keyMsg(r))
 	}
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = cast(next)
+	if m.mode != ModeNormal {
+		t.Fatalf("confirm should return to NORMAL, got %v", m.mode)
+	}
 
 	if err := m.RefreshFromStore(); err != nil {
 		t.Fatal(err)

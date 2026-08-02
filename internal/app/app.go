@@ -63,6 +63,10 @@ type Model struct {
 	// editField is the model field being edited (description/due/effort/...).
 	editField string
 
+	// editPlaceholder is the placeholder shown for a freshly-created item's
+	// inline edit ("" for a normal edit of an existing value).
+	editPlaceholder string
+
 	// filter is the active search filter (Task 6 narrows the visible list).
 	filter string
 

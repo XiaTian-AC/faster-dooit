@@ -88,6 +88,11 @@ func (m *Model) renderWorkspacePane(w int) string {
 		}
 		// indent before marker so the cursor aligns with the row's text column.
 		indent := strings.Repeat("  ", ws[i].NestLevel())
+		// Inline edit: the focused row renders the text input instead of the row.
+		if m.mode == ModeInsert && m.focus == PaneWorkspace && i == m.WorkspaceCursor {
+			lines = append(lines, indent+marker+m.input.View())
+			continue
+		}
 		lines = append(lines, indent+marker+m.RenderRow(PaneWorkspace, i))
 	}
 	return strings.Join(lines, "\n")
@@ -118,6 +123,11 @@ func (m *Model) renderTodoPane(w int) string {
 		}
 		// indent before marker so the cursor aligns with the row's text column.
 		indent := strings.Repeat("  ", todos[i].NestLevel())
+		// Inline edit: the focused row renders the text input instead of the row.
+		if m.mode == ModeInsert && m.focus == PaneTodo && i == m.TodoCursor {
+			lines = append(lines, indent+marker+m.input.View())
+			continue
+		}
 		lines = append(lines, indent+marker+m.RenderRow(PaneTodo, i))
 	}
 	return strings.Join(lines, "\n")

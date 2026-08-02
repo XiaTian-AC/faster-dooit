@@ -40,7 +40,13 @@ func (m *Model) renderStatusBar() string {
 	switch m.mode {
 	case ModeConfirm:
 		right = " " + m.input.Placeholder + " "
-	case ModeInsert, ModeSearch, ModeSort:
+	case ModeInsert:
+		// INSERT is inline on the cursor row (see view.go); the status bar
+		// shows only the mode chip so the input is not duplicated.
+		if m.notice != "" {
+			right = " " + m.notice + " "
+		}
+	case ModeSearch, ModeSort:
 		right = " " + m.input.View() + " "
 	default:
 		if m.notice != "" {

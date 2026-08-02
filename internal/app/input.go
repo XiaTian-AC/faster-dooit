@@ -84,6 +84,7 @@ func (m *Model) ConfirmEdit() tea.Cmd {
 	}
 	m.mode = ModeNormal
 	m.editField = ""
+	m.editPlaceholder = ""
 	m.BumpVersion()
 	return nil
 }
@@ -92,6 +93,7 @@ func (m *Model) ConfirmEdit() tea.Cmd {
 func (m *Model) cancelMode() {
 	m.mode = ModeNormal
 	m.editField = ""
+	m.editPlaceholder = ""
 	m.confirmCallback = nil
 	m.BumpVersion()
 }
@@ -236,6 +238,11 @@ func (m *Model) confirmMode() tea.Cmd {
 
 func (m *Model) applyDescription() {
 	val := m.input.Value()
+	// For a freshly-created item, an empty input keeps the default name
+	// rather than overwriting it with "".
+	if val == "" && m.editPlaceholder != "" {
+		return
+	}
 	if m.focus == PaneTodo {
 		if t := m.selectedTodo(); t != nil {
 			t.Description = val
