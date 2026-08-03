@@ -65,6 +65,7 @@ func (m *Model) actionMoveDown(_ *Model) tea.Cmd {
 		if m.WorkspaceCursor < max-1 {
 			m.WorkspaceCursor++
 		}
+		m.syncWorkspaceSelection()
 	} else {
 		max := len(m.visibleTodos())
 		if max == 0 {
@@ -89,6 +90,7 @@ func (m *Model) actionMoveUp(_ *Model) tea.Cmd {
 			m.TodoCursor--
 		}
 	}
+	m.syncWorkspaceSelection()
 	m.BumpVersion()
 	return nil
 }
@@ -99,6 +101,7 @@ func (m *Model) actionGoToTop(_ *Model) tea.Cmd {
 	} else {
 		m.TodoCursor = 0
 	}
+	m.syncWorkspaceSelection()
 	m.BumpVersion()
 	return nil
 }
@@ -113,8 +116,20 @@ func (m *Model) actionGoToBottom(_ *Model) tea.Cmd {
 			m.TodoCursor = n - 1
 		}
 	}
+	m.syncWorkspaceSelection()
 	m.BumpVersion()
 	return nil
+}
+
+// syncWorkspaceSelection keeps the todo pane pointing at the workspace under
+// the workspace cursor, so switching workspaces updates the right side.
+func (m *Model) syncWorkspaceSelection() {
+	if m.focus != PaneWorkspace {
+		return
+	}
+	if ws := m.selectedWorkspaceByCursor(); ws != nil {
+		m.selectedWorkspaceID = ws.ID
+	}
 }
 
 // Default names assigned to freshly-created items so a new row is never an
@@ -162,20 +177,20 @@ func (m *Model) actionAddSibling(_ *Model) tea.Cmd {
 		if ws == nil {
 			return nil
 		}
-		newTodo = &model.Todo{Description: defaultTaskName, OrderIndex: len(ws.Todos), Pending: true, ParentWorkspaceID: &ws.ID}
+		newTodo = &model.Todo{Description: defaultTaskName, OrderIndex: len(ws.Todos), Pending: true, Urgency: 1, ParentWorkspaceID: &ws.ID}
 		if err := m.store.SaveTodo(newTodo); err != nil {
 			return noticeCmd("add sibling failed: " + err.Error())
 		}
 	} else {
 		parentTodo := todo.ParentTodo
 		if parentTodo != nil {
-			newTodo = &model.Todo{Description: defaultTaskName, Pending: true, OrderIndex: len(parentTodo.Todos), ParentTodoID: &parentTodo.ID}
+			newTodo = &model.Todo{Description: defaultTaskName, Pending: true, OrderIndex: len(parentTodo.Todos), Urgency: 1, ParentTodoID: &parentTodo.ID}
 			if err := m.store.SaveTodo(newTodo); err != nil {
 				return noticeCmd("add sibling failed: " + err.Error())
 			}
 		} else {
 			ws := todo.ParentWorkspace
-			newTodo = &model.Todo{Description: defaultTaskName, Pending: true, OrderIndex: len(ws.Todos), ParentWorkspaceID: &ws.ID}
+			newTodo = &model.Todo{Description: defaultTaskName, Pending: true, OrderIndex: len(ws.Todos), Urgency: 1, ParentWorkspaceID: &ws.ID}
 			if err := m.store.SaveTodo(newTodo); err != nil {
 				return noticeCmd("add sibling failed: " + err.Error())
 			}
@@ -209,7 +224,23 @@ func (m *Model) actionAddChild(_ *Model) tea.Cmd {
 		}
 		return m.addWorkspaceChild(ws)
 	}
-	return m.actionAddSibling(m)
+	// Todo pane: create a nested child under the selected todo (not a
+	// sibling), so the new row renders indented.
+	todo := m.selectedTodo()
+	if todo == nil {
+		return m.actionAddSibling(m)
+	}
+	newTodo := &model.Todo{
+		Description: defaultTaskName, Pending: true, Urgency: 1,
+		OrderIndex:   len(todo.Todos),
+		ParentTodoID: &todo.ID,
+	}
+	if err := m.store.SaveTodo(newTodo); err != nil {
+		return noticeCmd("add child failed: " + err.Error())
+	}
+	m.RefreshFromStore()
+	m.TodoCursor = max(0, indexOfTodoByID(m.visibleTodos(), newTodo.ID))
+	return m.startInlineEdit(defaultTaskName)
 }
 
 func (m *Model) actionDelete(_ *Model) tea.Cmd {

@@ -82,18 +82,23 @@ func (m *Model) renderWorkspacePane(w int) string {
 	lines := make([]string, 0, len(ws)+1)
 	lines = append(lines, title)
 	for i := range ws {
+		selected := i == m.WorkspaceCursor && m.focus == PaneWorkspace
 		marker := "  "
-		if i == m.WorkspaceCursor && m.focus == PaneWorkspace {
+		if selected {
 			marker = th.Style("green").Render("> ")
 		}
 		// indent before marker so the cursor aligns with the row's text column.
 		indent := strings.Repeat("  ", ws[i].NestLevel())
 		// Inline edit: the focused row renders the text input instead of the row.
-		if m.mode == ModeInsert && m.focus == PaneWorkspace && i == m.WorkspaceCursor {
+		if m.mode == ModeInsert && selected {
 			lines = append(lines, indent+marker+m.input.View())
 			continue
 		}
-		lines = append(lines, indent+marker+m.RenderRow(PaneWorkspace, i))
+		row := indent + marker + m.RenderRow(PaneWorkspace, i)
+		if selected {
+			row = m.renderSelectedRow(row, w)
+		}
+		lines = append(lines, row)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -117,20 +122,36 @@ func (m *Model) renderTodoPane(w int) string {
 	lines := make([]string, 0, len(todos)+1)
 	lines = append(lines, title)
 	for i := range todos {
+		selected := i == m.TodoCursor && m.focus == PaneTodo
 		marker := "  "
-		if i == m.TodoCursor && m.focus == PaneTodo {
+		if selected {
 			marker = th.Style("green").Render("> ")
 		}
 		// indent before marker so the cursor aligns with the row's text column.
 		indent := strings.Repeat("  ", todos[i].NestLevel())
 		// Inline edit: the focused row renders the text input instead of the row.
-		if m.mode == ModeInsert && m.focus == PaneTodo && i == m.TodoCursor {
+		if m.mode == ModeInsert && selected {
 			lines = append(lines, indent+marker+m.input.View())
 			continue
 		}
-		lines = append(lines, indent+marker+m.RenderRow(PaneTodo, i))
+		row := indent + marker + m.RenderRow(PaneTodo, i)
+		if selected {
+			row = m.renderSelectedRow(row, w)
+		}
+		lines = append(lines, row)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// renderSelectedRow applies a full-row background highlight so the active
+// row reads as selected at a glance, and pads to the pane width.
+func (m *Model) renderSelectedRow(row string, w int) string {
+	th := m.appTheme()
+	// background1 is the muted panel color; keep any row foreground intact.
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color(th.Background1)).
+		Width(max(0, w)).
+		Render(row)
 }
 
 // renderDashboard renders the config dashboard in the todo pane.
