@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // newTestAppTwoWorkspaces builds an app with two sibling workspaces so pane
@@ -97,18 +98,23 @@ func TestSelectedRowHighlighted(t *testing.T) {
 	m.SetFocus(PaneTodo)
 	m.TodoCursor = 0
 
-	sel := m.renderSelectedRow("x", 20)
-	if len(sel) < 20 {
-		t.Fatalf("selected row should be padded to pane width, got %d chars", len(sel))
+	// The selected row carries a background ANSI code, the cursor arrow, and is
+	// padded to the pane width.
+	sel := m.renderSelectedRow("> abc", 20)
+	if !strings.Contains(sel, "\x1b[48;2;") {
+		t.Fatalf("selected row should carry a background highlight, got %q", sel)
 	}
 
 	v := m.renderTodoPane(20)
 	found := false
 	for _, line := range strings.Split(v, "\n") {
-		if strings.HasPrefix(line, "> ") {
+		if strings.Contains(line, "> ") {
 			found = true
-			if len(line) < 20 {
-				t.Fatalf("highlighted row should span the pane width, got %d chars: %q", len(line), line)
+			if !strings.Contains(line, "\x1b[48;2;") {
+				t.Fatalf("highlighted row should carry a background, got %q", line)
+			}
+			if lipgloss.Width(line) < 20 {
+				t.Fatalf("highlighted row should span the pane width, got %d cols", lipgloss.Width(line))
 			}
 		}
 	}

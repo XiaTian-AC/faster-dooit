@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -164,18 +166,38 @@ func (m *Model) renderTodoPane(w int) string {
 
 // renderSelectedRow applies a full-row background highlight so the active
 // row reads as selected at a glance, and pads with plain spaces to the pane
-// width. Padding is explicit (not lipgloss .Width) so the highlight never
-// leaks into the surrounding border rows.
+// width. The background is injected as raw ANSI so it survives the row's own
+// color resets (a lipgloss .Background would be dropped by the first \x1b[0m
+// inside a colored cell, leaving only the cursor arrow highlighted).
 func (m *Model) renderSelectedRow(row string, w int) string {
 	visible := lipgloss.Width(row)
 	if pad := w - visible; pad > 0 {
 		row += strings.Repeat(" ", pad)
 	}
 	th := m.appTheme()
-	// background1 is the muted panel color; keep any row foreground intact.
-	return lipgloss.NewStyle().
-		Background(lipgloss.Color(th.Background1)).
-		Render(row)
+	bg := ansiBackground(th.Background1)
+	if bg == "" {
+		return row
+	}
+	reset := "\x1b[0m"
+	// Re-apply the background after every reset so the highlight spans the row.
+	return bg + strings.ReplaceAll(row, reset, reset+bg) + reset
+}
+
+// ansiBackground converts a #RRGGBB color to a 24-bit ANSI background sequence,
+// or "" for an unparseable value.
+func ansiBackground(hex string) string {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) != 6 {
+		return ""
+	}
+	r, err1 := strconv.ParseInt(hex[0:2], 16, 32)
+	g, err2 := strconv.ParseInt(hex[2:4], 16, 32)
+	b, err3 := strconv.ParseInt(hex[4:6], 16, 32)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return ""
+	}
+	return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b)
 }
 
 // renderDashboard renders the config dashboard in the todo pane.

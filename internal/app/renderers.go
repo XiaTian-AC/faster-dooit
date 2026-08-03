@@ -193,11 +193,25 @@ func (m *Model) formatTodoAligned(t *model.Todo, widths map[string]int, editFiel
 			cell = m.formatTodoColumn(col, t)
 		}
 		if w := widths[col]; w > 0 {
-			cell = padRight(cell, w)
+			cell = fitColumn(cell, w)
 		}
 		parts = append(parts, cell)
 	}
 	return strings.Join(parts, " ")
+}
+
+// fitColumn clips a cell to at most n visible columns (with an ellipsis) and
+// pads it up to n — keeping rows from overflowing the pane and breaking to the
+// next terminal line.
+func fitColumn(s string, n int) string {
+	if cur := lipgloss.Width(s); cur > n {
+		if n > 1 {
+			s = truncate(s, n-1) + "…"
+		} else {
+			s = "…"
+		}
+	}
+	return padRight(s, n)
 }
 
 // padRight pads s (visible width) to at least n columns with trailing spaces.
