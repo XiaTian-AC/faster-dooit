@@ -122,13 +122,18 @@ func (m *Model) actionGoToBottom(_ *Model) tea.Cmd {
 }
 
 // syncWorkspaceSelection keeps the todo pane pointing at the workspace under
-// the workspace cursor, so switching workspaces updates the right side.
+// the workspace cursor, so switching workspaces updates the right side. The
+// todo cursor is clamped (never reset to the top) so a smaller workspace does
+// not leave the cursor pointing past the end — which would drop the highlight.
 func (m *Model) syncWorkspaceSelection() {
 	if m.focus != PaneWorkspace {
 		return
 	}
 	if ws := m.selectedWorkspaceByCursor(); ws != nil {
 		m.selectedWorkspaceID = ws.ID
+		if n := len(m.visibleTodos()); m.TodoCursor >= n {
+			m.TodoCursor = max(0, n-1)
+		}
 	}
 }
 

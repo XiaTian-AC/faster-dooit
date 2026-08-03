@@ -42,8 +42,10 @@ func (m *Model) renderStatusBar() string {
 		right = " " + m.input.Placeholder + " "
 	case ModeInsert:
 		// INSERT is inline on the cursor row (see view.go); the status bar
-		// shows only the mode chip so the input is not duplicated.
-		if m.notice != "" {
+		// shows which field is being edited so the user knows what to type.
+		if m.editField != "" {
+			right = " editing " + m.editField + " "
+		} else if m.notice != "" {
 			right = " " + m.notice + " "
 		}
 	case ModeSearch, ModeSort:

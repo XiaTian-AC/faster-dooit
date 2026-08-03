@@ -79,6 +79,12 @@ func (m *Model) renderWorkspacePane(w int) string {
 	if len(ws) == 0 {
 		return lipgloss.JoinVertical(lipgloss.Left, title, dimStyle.Render("(no workspaces)"))
 	}
+	if m.WorkspaceCursor >= len(ws) {
+		m.WorkspaceCursor = len(ws) - 1
+	}
+	if m.WorkspaceCursor < 0 {
+		m.WorkspaceCursor = 0
+	}
 	lines := make([]string, 0, len(ws)+1)
 	lines = append(lines, title)
 	for i := range ws {
@@ -119,6 +125,13 @@ func (m *Model) renderTodoPane(w int) string {
 	if len(todos) == 0 {
 		return lipgloss.JoinVertical(lipgloss.Left, title, dimStyle.Render("(no items to display)"))
 	}
+	if m.TodoCursor >= len(todos) {
+		m.TodoCursor = len(todos) - 1
+	}
+	if m.TodoCursor < 0 {
+		m.TodoCursor = 0
+	}
+	widths := m.columnWidths(PaneTodo, w)
 	lines := make([]string, 0, len(todos)+1)
 	lines = append(lines, title)
 	for i := range todos {
@@ -129,12 +142,18 @@ func (m *Model) renderTodoPane(w int) string {
 		}
 		// indent before marker so the cursor aligns with the row's text column.
 		indent := strings.Repeat("  ", todos[i].NestLevel())
-		// Inline edit: the focused row renders the text input instead of the row.
+		// Inline edit: only the edited field's column is replaced by the input;
+		// the rest of the row keeps its table layout.
 		if m.mode == ModeInsert && selected {
-			lines = append(lines, indent+marker+m.input.View())
+			editField, editInput := "", ""
+			if m.editField != "" {
+				editField, editInput = m.editField, m.input.View()
+			}
+			row := indent + marker + m.formatTodoAligned(todos[i], widths, editField, editInput)
+			lines = append(lines, row)
 			continue
 		}
-		row := indent + marker + m.RenderRow(PaneTodo, i)
+		row := indent + marker + m.formatTodoAligned(todos[i], widths, "", "")
 		if selected {
 			row = m.renderSelectedRow(row, w)
 		}
@@ -144,13 +163,18 @@ func (m *Model) renderTodoPane(w int) string {
 }
 
 // renderSelectedRow applies a full-row background highlight so the active
-// row reads as selected at a glance, and pads to the pane width.
+// row reads as selected at a glance, and pads with plain spaces to the pane
+// width. Padding is explicit (not lipgloss .Width) so the highlight never
+// leaks into the surrounding border rows.
 func (m *Model) renderSelectedRow(row string, w int) string {
+	visible := lipgloss.Width(row)
+	if pad := w - visible; pad > 0 {
+		row += strings.Repeat(" ", pad)
+	}
 	th := m.appTheme()
 	// background1 is the muted panel color; keep any row foreground intact.
 	return lipgloss.NewStyle().
 		Background(lipgloss.Color(th.Background1)).
-		Width(max(0, w)).
 		Render(row)
 }
 

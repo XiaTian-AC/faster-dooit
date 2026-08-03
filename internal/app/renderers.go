@@ -135,6 +135,80 @@ func (m *Model) formatTodo(t *model.Todo) string {
 	return strings.Join(parts, " ")
 }
 
+// columnWidths assigns a fixed width per column so rows line up like a table.
+// description is elastic (absorbs the remaining pane width); other columns are
+// sized to their typical content.
+func (m *Model) columnWidths(pane int, paneW int) map[string]int {
+	cols := m.ColumnLayout(pane)
+	widths := make(map[string]int, len(cols))
+	fixed := 0
+	var elastic []string
+	for _, c := range cols {
+		switch c {
+		case "status":
+			widths[c] = 1
+		case "due":
+			widths[c] = 16
+		case "effort":
+			widths[c] = 4
+		case "recurrence":
+			widths[c] = 6
+		case "urgency":
+			widths[c] = 4
+		case "description":
+			elastic = append(elastic, c)
+		default:
+			elastic = append(elastic, c)
+		}
+		if _, ok := widths[c]; ok {
+			fixed += widths[c] + 1 // +1 column gap
+		}
+	}
+	// Space between columns is one char; give elastic columns the rest.
+	avail := paneW - fixed
+	if len(elastic) > 0 && avail > 8 {
+		elasticW := avail / len(elastic)
+		for _, c := range elastic {
+			widths[c] = elasticW
+		}
+	} else {
+		for _, c := range elastic {
+			widths[c] = 12 // fallback so tiny panes stay readable
+		}
+	}
+	return widths
+}
+
+// formatTodoAligned renders a todo row with each column padded to a fixed
+// width (a table layout). When editField matches a column and input is
+// non-empty, that column is replaced by the inline input instead.
+func (m *Model) formatTodoAligned(t *model.Todo, widths map[string]int, editField, input string) string {
+	cols := m.ColumnLayout(PaneTodo)
+	parts := make([]string, 0, len(cols))
+	for _, col := range cols {
+		var cell string
+		if editField != "" && col == editField && input != "" {
+			cell = input
+		} else {
+			cell = m.formatTodoColumn(col, t)
+		}
+		if w := widths[col]; w > 0 {
+			cell = padRight(cell, w)
+		}
+		parts = append(parts, cell)
+	}
+	return strings.Join(parts, " ")
+}
+
+// padRight pads s (visible width) to at least n columns with trailing spaces.
+func padRight(s string, n int) string {
+	cur := lipgloss.Width(s)
+	if cur >= n {
+		return s
+	}
+	return s + strings.Repeat(" ", n-cur)
+}
+
 func (m *Model) formatTodoColumn(field string, t *model.Todo) string {
 	th := m.appTheme()
 
