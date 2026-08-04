@@ -216,6 +216,53 @@ func TestSelectedRowNeverExceedsPane(t *testing.T) {
 	}
 }
 
+// TestDualPaneScrollsOnShortTerminal: even in the wide (dual-pane) layout, a
+// short terminal must scroll the todo viewport so the cursor stays visible.
+func TestDualPaneScrollsOnShortTerminal(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.TodoCursor = 0
+	for i := 0; i < 8; i++ {
+		todo := &model.Todo{Description: "item", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID}
+		if err := m.store.SaveTodo(todo); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	// Move cursor to the last todo (index 8).
+	for i := 0; i < 8; i++ {
+		m.actionMoveDown(m)
+	}
+	if m.TodoCursor != 8 {
+		t.Fatalf("cursor = %d, want 8", m.TodoCursor)
+	}
+	// Wide (dual-pane) but short: height 14 gives a small viewport.
+	m.width, m.height = 150, 14
+	v := m.View()
+	if m.layoutMode() != layoutNormal {
+		t.Fatalf("expected dual-pane layout, got %v", m.layoutMode())
+	}
+	// Cursor row must be visible somewhere after the Todos title.
+	todoIdx := -1
+	cursorLine := -1
+	for i, ln := range strings.Split(v, "\n") {
+		if strings.Contains(ln, "Todos") {
+			todoIdx = i
+		}
+		if strings.Contains(ln, "> ") {
+			cursorLine = i
+		}
+	}
+	if todoIdx < 0 || cursorLine < 0 {
+		t.Fatalf("cursor row not visible in dual-pane scroll:\n%s", v)
+	}
+	if cursorLine <= todoIdx {
+		t.Fatalf("cursor should render below the Todos title, cursorLine=%d todoIdx=%d", cursorLine, todoIdx)
+	}
+}
+
 // TestInlineEditFullWidthInput: while editing effort (a 4-col column), the
 // input must render at full available width — not clipped to the column.
 func TestInlineEditFullWidthInput(t *testing.T) {

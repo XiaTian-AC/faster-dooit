@@ -116,17 +116,20 @@ func (m *Model) View() string {
 // renderDualPane lays the two panes side by side. Each pane box is rendered
 // at Width(n) which yields n+2 total columns (2 border columns sit outside
 // the width budget); the panes receive the content width n-2 so rows fill
-// the box content area exactly.
+// the box content area exactly. Both panes are viewport-scrolled to the
+// available height so short terminals still navigate correctly.
 func (m *Model) renderDualPane() string {
 	paneW := m.width / 4 // workspace pane ≈ 20% per UI 规格 #1
 	if paneW < 16 {
 		paneW = 16
 	}
 	rightW := m.width - paneW - 4
+	// Each pane gets the full height minus the status bar.
+	maxLines := m.height - 1
 	// Content width inside the border: Width(n).Render gives n+2 columns, so
 	// content area is (n-2); pass the content width to the pane renderers.
-	left := m.renderWorkspacePane(paneW - 2)
-	right := m.renderTodoPane(rightW - 2)
+	left := m.renderWorkspacePaneClipped(paneW-2, maxLines)
+	right := m.renderTodoPaneClipped(rightW-2, maxLines)
 
 	var combined string
 	if m.focus == PaneWorkspace {
