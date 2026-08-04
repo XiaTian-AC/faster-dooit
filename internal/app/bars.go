@@ -41,13 +41,15 @@ func (m *Model) renderStatusBar() string {
 	case ModeConfirm:
 		right = " " + m.input.Placeholder + " "
 	case ModeInsert:
-		// INSERT is inline on the cursor row (see view.go); the status bar
-		// shows which field is being edited so the user knows what to type.
-		if m.editField != "" {
-			right = " editing " + m.editField + " "
-		} else if m.notice != "" {
+		// Split: left shows what's being edited; right shows a validation
+		// error from the last confirm (if any), else the field notice.
+		left := " editing " + m.editField + " "
+		right := ""
+		if m.notice != "" {
 			right = " " + m.notice + " "
 		}
+		return th.Style("primary").Render(mode) + pad(max(0, m.width-len(mode)-len(left)-len(right))) +
+			th.Style("secondary").Render(left+right)
 	case ModeSearch, ModeSort:
 		right = " " + m.input.View() + " "
 	default:

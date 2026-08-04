@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -38,6 +39,20 @@ func TestScrollOffsetsDefault(t *testing.T) {
 	m := newTestApp(t)
 	if m.workspaceScroll != 0 || m.todoScroll != 0 {
 		t.Fatalf("scroll offsets should start at 0, got %d/%d", m.workspaceScroll, m.todoScroll)
+	}
+}
+
+func TestInsertStatusBarShowsErrorAndField(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.StartEdit("due")
+	m.notice = "invalid date: unknown format"
+	v := m.renderStatusBar()
+	if !strings.Contains(v, "editing due") {
+		t.Fatalf("status bar should show edit field, got %q", v)
+	}
+	if !strings.Contains(v, "invalid date") {
+		t.Fatalf("status bar should show the error, got %q", v)
 	}
 }
 
