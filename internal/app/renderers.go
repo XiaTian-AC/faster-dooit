@@ -255,17 +255,11 @@ func (m *Model) visibleColumns(pane int, paneW int) []string {
 }
 
 // formatTodoAligned renders a todo row with each column padded to a fixed
-// width (a table layout). When editField matches a column and input is
-// non-empty, that column is replaced by the inline input instead.
-func (m *Model) formatTodoAligned(t *model.Todo, cols []string, widths map[string]int, editField, input string) string {
+// width (a table layout).
+func (m *Model) formatTodoAligned(t *model.Todo, cols []string, widths map[string]int) string {
 	parts := make([]string, 0, len(cols))
 	for _, col := range cols {
-		var cell string
-		if editField != "" && col == editField && input != "" {
-			cell = input
-		} else {
-			cell = m.formatTodoColumn(col, t)
-		}
+		cell := m.formatTodoColumn(col, t)
 		if w := widths[col]; w > 0 {
 			cell = fitColumn(cell, w)
 		}

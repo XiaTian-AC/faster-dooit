@@ -215,3 +215,22 @@ func TestSelectedRowNeverExceedsPane(t *testing.T) {
 		}
 	}
 }
+
+// TestInlineEditFullWidthInput: while editing effort (a 4-col column), the
+// input must render at full available width — not clipped to the column.
+func TestInlineEditFullWidthInput(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.TodoCursor = 0
+	m.StartEdit("effort")
+	m.input.SetValue("1234567890")
+	v := m.renderTodoPane(60)
+	if !strings.Contains(v, "1234567890") {
+		t.Fatalf("effort input should show full value, got:\n%s", v)
+	}
+	for _, line := range strings.Split(v, "\n") {
+		if lw := lipgloss.Width(line); lw > 60 {
+			t.Errorf("inline edit row overflows pane by %d cols: %q", lw-60, line)
+		}
+	}
+}

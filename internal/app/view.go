@@ -360,18 +360,14 @@ func (m *Model) renderTodoPane(w int) string {
 		}
 		// indent before marker so the cursor aligns with the row's text column.
 		indent := strings.Repeat("  ", todos[i].NestLevel())
-		// Inline edit: only the edited field's column is replaced by the input;
-		// the rest of the row keeps its table layout.
+		// Inline edit: the whole row becomes the text input (full width), so
+		// small columns like effort don't clip what the user is typing.
 		if m.mode == ModeInsert && selected {
-			editField, editInput := "", ""
-			if m.editField != "" {
-				editField, editInput = m.editField, m.input.View()
-			}
-			row := indent + marker + m.formatTodoAligned(todos[i], cols, widths, editField, editInput)
+			row := indent + marker + m.input.View()
 			lines = append(lines, row)
 			continue
 		}
-		row := indent + marker + m.formatTodoAligned(todos[i], cols, widths, "", "")
+		row := indent + marker + m.formatTodoAligned(todos[i], cols, widths)
 		if selected {
 			row = m.renderSelectedRow(row, w)
 		}
