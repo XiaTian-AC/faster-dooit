@@ -83,17 +83,14 @@ func TestFitColumnANSI(t *testing.T) {
 // never dropped.
 func TestVisibleColumnsDropsOnNarrowBudget(t *testing.T) {
 	m := newTestApp(t)
-	// Column hiding only engages in the stacked layout; set a stacked size so
-	// the drop logic runs against the given budget.
-	m.width, m.height = 80, 30
 	cases := []struct {
 		budget int
 		want   int
 	}{
-		{100, 4}, // all columns
-		{45, 4},  // description has >= minDescWidth
-		{30, 3},  // urgency dropped
-		{22, 2},  // due dropped, only status+description
+		{100, 6}, // all columns (status desc due effort recurrence urgency)
+		{45, 5},  // urgency dropped
+		{22, 3},  // due dropped, status+description+recurrence
+		{18, 2},  // only status+description
 	}
 	for _, c := range cases {
 		cols := m.visibleColumns(PaneTodo, c.budget)
@@ -109,27 +106,6 @@ func TestVisibleColumnsDropsOnNarrowBudget(t *testing.T) {
 		if !found {
 			t.Errorf("budget %d: description dropped from %v", c.budget, cols)
 		}
-	}
-}
-
-// TestHideColumnsGate: column hiding only engages in the stacked layout; in
-// dual-pane (or when the pane is rendered directly in tests with width 0) the
-// full layout is kept.
-func TestHideColumnsGate(t *testing.T) {
-	m := newTestApp(t)
-	// Direct renderTodoPane call (width 0) must keep the full layout.
-	if m.hideColumns() {
-		t.Fatal("hideColumns should be false when width is 0")
-	}
-	// Dual-pane width keeps all columns.
-	m.width, m.height = 120, 30
-	if m.hideColumns() {
-		t.Fatal("hideColumns should be false in dual-pane layout")
-	}
-	// Stacked width engages hiding.
-	m.width, m.height = 80, 30
-	if !m.hideColumns() {
-		t.Fatal("hideColumns should be true in stacked layout")
 	}
 }
 

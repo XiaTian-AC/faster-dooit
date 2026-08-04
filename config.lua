@@ -21,7 +21,7 @@ api.vars.urgency_colors = { "#A3BE8C", "#EBCB8B", "#D08770", "#BF616A", "#FF5C5C
 
 -- Column layout for each pane.
 api.layouts.workspace_layout = { "description" }
-api.layouts.todo_layout = { "status", "description", "due", "urgency" }
+api.layouts.todo_layout = { "status", "description", "due", "effort", "recurrence", "urgency" }
 
 -- Todo formatters. Each returns {text=..., style=...}; style is a color
 -- keyword or hex, mapped to lipgloss by the renderer.

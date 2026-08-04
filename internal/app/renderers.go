@@ -70,7 +70,7 @@ func (m *Model) ColumnLayout(pane int) []string {
 	if pane == PaneWorkspace {
 		return []string{"description"}
 	}
-	return []string{"status", "description", "due", "urgency"}
+	return []string{"status", "description", "due", "effort", "recurrence", "urgency"}
 }
 
 // RenderRow renders the row at idx in the given pane, using the row cache.
@@ -199,25 +199,14 @@ func fixedWidth(col string) int {
 	return 0 // elastic (description)
 }
 
-// hideColumns reports whether responsive column hiding is active: only in the
-// stacked layout (width below layoutWStack) with a real terminal size. When
-// the pane is rendered directly in tests (width 0) the full layout is kept.
-func (m *Model) hideColumns() bool {
-	if m.width == 0 || m.height == 0 {
-		return false
-	}
-	return m.layoutMode() == layoutStacked
-}
-
 // visibleColumns returns the columns to render for pane given the column
 // budget paneW. It starts from the configured layout and drops the least
 // important fixed columns (in dropOrder) until the fixed columns + gaps fit
 // in paneW with at least minDescWidth left for the elastic description.
+// The drop is always applied when the budget is tight, so narrow panes never
+// overflow regardless of the overall layout mode.
 func (m *Model) visibleColumns(pane int, paneW int) []string {
 	cols := append([]string{}, m.ColumnLayout(pane)...)
-	if !m.hideColumns() {
-		return cols
-	}
 	drop := append([]string{}, dropOrder...)
 	for len(cols) > 0 {
 		fixed := 0

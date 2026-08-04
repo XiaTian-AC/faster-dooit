@@ -15,8 +15,8 @@ func TestEvalDefaultConfig(t *testing.T) {
 	if len(rt.Bar) == 0 {
 		t.Error("expected bar widgets")
 	}
-	if len(rt.Layouts.Todo) != 4 {
-		t.Errorf("todo layout = %v, want 4 columns", rt.Layouts.Todo)
+	if len(rt.Layouts.Todo) != 6 {
+		t.Errorf("todo layout = %v, want 6 columns", rt.Layouts.Todo)
 	}
 	if len(rt.Dashboard) == 0 {
 		t.Error("expected dashboard lines")
