@@ -13,6 +13,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		// Reset per-pane scroll offsets so a shrink to a shorter terminal
+		// never leaves the old scroll sticking out of the new viewport.
+		m.workspaceScroll = 0
+		m.todoScroll = 0
 		m.BumpVersion()
 		return m, nil
 
