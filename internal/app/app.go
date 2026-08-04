@@ -30,6 +30,10 @@ type Model struct {
 	WorkspaceCursor int
 	TodoCursor      int
 
+	// Per-pane viewport scroll offsets for short terminals.
+	workspaceScroll int
+	todoScroll      int
+
 	// expanded[id] = true if the node is expanded in its tree view.
 	expanded map[int64]bool
 

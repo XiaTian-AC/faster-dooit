@@ -34,6 +34,13 @@ func newTestApp(t *testing.T) *Model {
 	return m
 }
 
+func TestScrollOffsetsDefault(t *testing.T) {
+	m := newTestApp(t)
+	if m.workspaceScroll != 0 || m.todoScroll != 0 {
+		t.Fatalf("scroll offsets should start at 0, got %d/%d", m.workspaceScroll, m.todoScroll)
+	}
+}
+
 func TestFocusWorkspacePane(t *testing.T) {
 	m := newTestApp(t)
 	if m.focus != 0 {
