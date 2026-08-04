@@ -144,27 +144,16 @@ func (m *Model) formatTodo(t *model.Todo) string {
 // a tight budget the elastic columns are floored at 1 each, so the sum can
 // exceed paneW (indent is accounted for by the caller).
 func (m *Model) columnWidths(pane int, paneW int) map[string]int {
-	cols := m.ColumnLayout(pane)
+	cols := m.visibleColumns(pane, paneW)
 	widths := make(map[string]int, len(cols))
 	fixed := 0
 	var elastic []string
 	for _, c := range cols {
-		switch c {
-		case "status":
-			widths[c] = 1
-		case "due":
-			widths[c] = 16
-		case "effort":
-			widths[c] = 4
-		case "recurrence":
-			widths[c] = 6
-		case "urgency":
-			widths[c] = 4
-		default:
+		if w := fixedWidth(c); w > 0 {
+			widths[c] = w
+			fixed += w
+		} else {
 			elastic = append(elastic, c)
-		}
-		if _, ok := widths[c]; ok {
-			fixed += widths[c]
 		}
 	}
 	gaps := len(cols) - 1
@@ -184,11 +173,91 @@ func (m *Model) columnWidths(pane int, paneW int) map[string]int {
 	return widths
 }
 
+// minDescWidth is the minimum display width kept for the elastic description
+// column before less-important fixed columns are dropped.
+const minDescWidth = 10
+
+// dropOrder lists columns from least to most important; when the pane is too
+// narrow to keep every fixed column and leave minDescWidth for description,
+// columns are removed in this order until the remaining fixed widths fit.
+// description is elastic and always survives.
+var dropOrder = []string{"urgency", "effort", "due", "recurrence"}
+
+func fixedWidth(col string) int {
+	switch col {
+	case "status":
+		return 1
+	case "due":
+		return 16
+	case "effort":
+		return 4
+	case "recurrence":
+		return 6
+	case "urgency":
+		return 4
+	}
+	return 0 // elastic (description)
+}
+
+// hideColumns reports whether responsive column hiding is active: only in the
+// stacked layout (width below layoutWStack) with a real terminal size. When
+// the pane is rendered directly in tests (width 0) the full layout is kept.
+func (m *Model) hideColumns() bool {
+	if m.width == 0 || m.height == 0 {
+		return false
+	}
+	return m.layoutMode() == layoutStacked
+}
+
+// visibleColumns returns the columns to render for pane given the column
+// budget paneW. It starts from the configured layout and drops the least
+// important fixed columns (in dropOrder) until the fixed columns + gaps fit
+// in paneW with at least minDescWidth left for the elastic description.
+func (m *Model) visibleColumns(pane int, paneW int) []string {
+	cols := append([]string{}, m.ColumnLayout(pane)...)
+	if !m.hideColumns() {
+		return cols
+	}
+	drop := append([]string{}, dropOrder...)
+	for len(cols) > 0 {
+		fixed := 0
+		elastic := 0
+		for _, c := range cols {
+			if w := fixedWidth(c); w > 0 {
+				fixed += w
+			} else {
+				elastic++
+			}
+		}
+		gaps := len(cols) - 1
+		if elastic == 0 || fixed+gaps+minDescWidth <= paneW {
+			break
+		}
+		// Drop the least important fixed column still present.
+		dropped := false
+		for _, d := range drop {
+			for i, c := range cols {
+				if c == d {
+					cols = append(cols[:i], cols[i+1:]...)
+					dropped = true
+					break
+				}
+			}
+			if dropped {
+				break
+			}
+		}
+		if !dropped {
+			break
+		}
+	}
+	return cols
+}
+
 // formatTodoAligned renders a todo row with each column padded to a fixed
 // width (a table layout). When editField matches a column and input is
 // non-empty, that column is replaced by the inline input instead.
-func (m *Model) formatTodoAligned(t *model.Todo, widths map[string]int, editField, input string) string {
-	cols := m.ColumnLayout(PaneTodo)
+func (m *Model) formatTodoAligned(t *model.Todo, cols []string, widths map[string]int, editField, input string) string {
 	parts := make([]string, 0, len(cols))
 	for _, col := range cols {
 		var cell string

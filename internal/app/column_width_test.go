@@ -77,6 +77,62 @@ func TestFitColumnANSI(t *testing.T) {
 	}
 }
 
+// TestVisibleColumnsDropsOnNarrowBudget verifies that as the column budget
+// shrinks, less-important fixed columns are dropped (urgency → effort → due)
+// so the elastic description keeps at least a minimum width. description is
+// never dropped.
+func TestVisibleColumnsDropsOnNarrowBudget(t *testing.T) {
+	m := newTestApp(t)
+	// Column hiding only engages in the stacked layout; set a stacked size so
+	// the drop logic runs against the given budget.
+	m.width, m.height = 80, 30
+	cases := []struct {
+		budget int
+		want   int
+	}{
+		{100, 4}, // all columns
+		{45, 4},  // description has >= minDescWidth
+		{30, 3},  // urgency dropped
+		{22, 2},  // due dropped, only status+description
+	}
+	for _, c := range cases {
+		cols := m.visibleColumns(PaneTodo, c.budget)
+		if len(cols) != c.want {
+			t.Errorf("budget %d: got %d columns %v, want %d", c.budget, len(cols), cols, c.want)
+		}
+		found := false
+		for _, col := range cols {
+			if col == "description" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("budget %d: description dropped from %v", c.budget, cols)
+		}
+	}
+}
+
+// TestHideColumnsGate: column hiding only engages in the stacked layout; in
+// dual-pane (or when the pane is rendered directly in tests with width 0) the
+// full layout is kept.
+func TestHideColumnsGate(t *testing.T) {
+	m := newTestApp(t)
+	// Direct renderTodoPane call (width 0) must keep the full layout.
+	if m.hideColumns() {
+		t.Fatal("hideColumns should be false when width is 0")
+	}
+	// Dual-pane width keeps all columns.
+	m.width, m.height = 120, 30
+	if m.hideColumns() {
+		t.Fatal("hideColumns should be false in dual-pane layout")
+	}
+	// Stacked width engages hiding.
+	m.width, m.height = 80, 30
+	if !m.hideColumns() {
+		t.Fatal("hideColumns should be true in stacked layout")
+	}
+}
+
 // TestTodoRowsFitPaneWidthCJK renders a todo pane with a CJK description and
 // asserts every row's display width is at most the pane width (rows must not
 // overflow the bordered pane and wrap to the next terminal line).

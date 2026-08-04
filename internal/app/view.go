@@ -349,6 +349,7 @@ func (m *Model) renderTodoPane(w int) string {
 		budget = 8
 	}
 	widths := m.columnWidths(PaneTodo, budget)
+	cols := m.visibleColumns(PaneTodo, budget)
 	lines := make([]string, 0, len(todos)+1)
 	lines = append(lines, title)
 	for i := range todos {
@@ -366,11 +367,11 @@ func (m *Model) renderTodoPane(w int) string {
 			if m.editField != "" {
 				editField, editInput = m.editField, m.input.View()
 			}
-			row := indent + marker + m.formatTodoAligned(todos[i], widths, editField, editInput)
+			row := indent + marker + m.formatTodoAligned(todos[i], cols, widths, editField, editInput)
 			lines = append(lines, row)
 			continue
 		}
-		row := indent + marker + m.formatTodoAligned(todos[i], widths, "", "")
+		row := indent + marker + m.formatTodoAligned(todos[i], cols, widths, "", "")
 		if selected {
 			row = m.renderSelectedRow(row, w)
 		}
