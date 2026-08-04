@@ -138,6 +138,40 @@ func TestResizeCmdEachDirection(t *testing.T) {
 	}
 }
 
+// TestCtrlLForcesRefresh: Ctrl+L must bump the render version and trigger a
+// terminal-size poll (a vim-style manual redraw) in any mode.
+func TestCtrlLForcesRefresh(t *testing.T) {
+	m := newTestApp(t)
+	v0 := m.version
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	if m.version == v0 {
+		t.Fatal("Ctrl+L should bump the render version")
+	}
+	if cmd == nil {
+		t.Fatal("Ctrl+L should return a command (resize poll)")
+	}
+
+	// Works inside INSERT too (user mid-edit can force a redraw).
+	m.StartEdit("description")
+	v1 := m.version
+	_, cmd2 := m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	if m.version == v1 {
+		t.Fatal("Ctrl+L in INSERT should bump the version")
+	}
+	if cmd2 == nil {
+		t.Fatal("Ctrl+L in INSERT should return a command")
+	}
+}
+
+// TestTerminalSizeProbe: terminalSize() must not panic and either return a
+// positive size or report failure (non-TTY test runs report failure).
+func TestTerminalSizeProbe(t *testing.T) {
+	w, h, ok := terminalSize()
+	if ok && (w <= 0 || h <= 0) {
+		t.Fatalf("terminalSize ok but invalid dims: %dx%d", w, h)
+	}
+}
+
 // TestResizeRefreshesLayout: a WindowSizeMsg must update the dimensions,
 // bump the version, and reset scroll offsets so a shrink from tall to short
 // doesn't leave the old scroll sticking out of the new viewport.

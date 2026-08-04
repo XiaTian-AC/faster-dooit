@@ -1,12 +1,10 @@
 package app
 
 import (
-	"os"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/term"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/theme"
 )
@@ -43,14 +41,11 @@ func (m *Model) startResizeTick() tea.Cmd {
 
 // pollTerminalSize checks the actual terminal size and returns a
 // tea.WindowSizeMsg if it changed, or nil to keep the current frame.
-// The size is probed from stdout, falling back to stdin: on Windows the
-// stdout handle can be invalid under some terminals while stdin (CONIN$)
-// remains a valid console handle.
+// The size is probed via terminalSize(), which is platform-aware: on Windows
+// it opens CONOUT$ to get the real console handle even under ConPTY.
 func (m *Model) pollTerminalSize() tea.Cmd {
-	for _, fd := range []uintptr{os.Stdout.Fd(), os.Stdin.Fd()} {
-		if w, h, err := term.GetSize(fd); err == nil {
-			return m.resizeCmdFromSize(w, h)
-		}
+	if w, h, ok := terminalSize(); ok {
+		return m.resizeCmdFromSize(w, h)
 	}
 	// Can't query the size (e.g. piped output) — do nothing.
 	return m.startResizeTick()

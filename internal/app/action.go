@@ -261,6 +261,24 @@ func (m *Model) actionToggleComplete(_ *Model) tea.Cmd {
 	if t == nil {
 		return nil
 	}
+	// A recurring todo never completes (R4): completing it advances due and
+	// stays pending. Surface that so the user isn't confused by "o" not
+	// turning into "x".
+	if t.Pending && t.Recurrence != nil {
+		var nd time.Time
+		if t.Due != nil {
+			nd = t.Due.Add(*t.Recurrence)
+		} else {
+			nd = time.Now().Add(*t.Recurrence)
+		}
+		m.applyCompletionCascade(t)
+		m.saveTodoSubtree(t)
+		if err := m.RefreshFromStore(); err != nil {
+			return noticeCmd("reload failed: " + err.Error())
+		}
+		m.BumpVersion()
+		return m.Notify("recurring task: due advanced to "+nd.Format("2006-01-02 15:04"), "info")
+	}
 	m.applyCompletionCascade(t)
 	m.saveTodoSubtree(t)
 	if err := m.RefreshFromStore(); err != nil {

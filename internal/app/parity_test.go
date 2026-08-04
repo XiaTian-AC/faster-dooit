@@ -250,6 +250,30 @@ func TestOverdueStatusRendersBang(t *testing.T) {
 	}
 }
 
+// TestRecurrenceCompletionNotifies: completing a recurring todo advances due
+// (R4) AND surfaces a notice so the user isn't confused by "o" staying "o".
+func TestRecurrenceCompletionNotifies(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	rec := 24 * time.Hour
+	todo := m.selectedTodo()
+	todo.Recurrence = &rec
+	due := time.Now().Add(-time.Hour)
+	todo.Due = &due
+	if err := m.store.SaveTodo(todo); err != nil {
+		t.Fatal(err)
+	}
+
+	m.actionToggleComplete(m)
+
+	if m.notice == "" {
+		t.Fatalf("completing a recurring todo should surface a notice, got %q", m.notice)
+	}
+	if !strings.Contains(strings.ToLower(m.notice), "due") {
+		t.Fatalf("notice should mention the advanced due, got %q", m.notice)
+	}
+}
+
 // TestRecurrenceCompletionPersistsAdvancedDue: completing a recurring todo
 // advances due and persists it (the due survives a reload from the store).
 func TestRecurrenceCompletionPersistsAdvancedDue(t *testing.T) {
