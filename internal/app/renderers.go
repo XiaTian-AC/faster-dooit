@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	glua "github.com/yuin/gopher-lua"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
@@ -136,8 +137,12 @@ func (m *Model) formatTodo(t *model.Todo) string {
 }
 
 // columnWidths assigns a fixed width per column so rows line up like a table.
-// description is elastic (absorbs the remaining pane width); other columns are
-// sized to their typical content.
+// description is elastic (absorbs the remaining budget); other columns are
+// sized to their typical content. `paneW` is the total width budget available
+// for the columns (markers/indent are handled by the caller). When the budget
+// is enough, widths are sized so sum(widths) + (ncols-1) gaps == paneW; with
+// a tight budget the elastic columns are floored at 1 each, so the sum can
+// exceed paneW (indent is accounted for by the caller).
 func (m *Model) columnWidths(pane int, paneW int) map[string]int {
 	cols := m.ColumnLayout(pane)
 	widths := make(map[string]int, len(cols))
@@ -155,25 +160,25 @@ func (m *Model) columnWidths(pane int, paneW int) map[string]int {
 			widths[c] = 6
 		case "urgency":
 			widths[c] = 4
-		case "description":
-			elastic = append(elastic, c)
 		default:
 			elastic = append(elastic, c)
 		}
 		if _, ok := widths[c]; ok {
-			fixed += widths[c] + 1 // +1 column gap
+			fixed += widths[c]
 		}
 	}
-	// Space between columns is one char; give elastic columns the rest.
-	avail := paneW - fixed
-	if len(elastic) > 0 && avail > 8 {
-		elasticW := avail / len(elastic)
-		for _, c := range elastic {
-			widths[c] = elasticW
+	gaps := len(cols) - 1
+	avail := paneW - fixed - gaps
+	if len(elastic) > 0 {
+		// Elastic columns absorb the remaining budget even when it is tight
+		// (deep indent/markers already deducted by the caller); a fixed
+		// fallback would overflow the pane. Floor at 1 so a cell stays visible.
+		ew := avail / len(elastic)
+		if ew < 1 {
+			ew = 1
 		}
-	} else {
 		for _, c := range elastic {
-			widths[c] = 12 // fallback so tiny panes stay readable
+			widths[c] = ew
 		}
 	}
 	return widths
@@ -202,16 +207,24 @@ func (m *Model) formatTodoAligned(t *model.Todo, widths map[string]int, editFiel
 
 // fitColumn clips a cell to at most n visible columns (with an ellipsis) and
 // pads it up to n — keeping rows from overflowing the pane and breaking to the
-// next terminal line.
+// next terminal line. Truncation is by display width (full-width CJK chars
+// count as 2), not rune count.
 func fitColumn(s string, n int) string {
 	if cur := lipgloss.Width(s); cur > n {
 		if n > 1 {
-			s = truncate(s, n-1) + "…"
+			s = ansi.Truncate(s, n, "…")
 		} else {
 			s = "…"
 		}
 	}
 	return padRight(s, n)
+}
+
+// truncateByWidth returns the longest prefix of s whose display width is at
+// most n columns, handling full-width characters and ANSI escape sequences
+// (styled cells must keep their escape codes intact).
+func truncateByWidth(s string, n int) string {
+	return ansi.Truncate(s, n, "")
 }
 
 // padRight pads s (visible width) to at least n columns with trailing spaces.

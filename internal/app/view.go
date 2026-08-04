@@ -39,7 +39,10 @@ func (m *Model) View() string {
 	if paneW < 16 {
 		paneW = 16
 	}
-	rightW := m.width - paneW - 2
+	// Each pane is rendered inside a bordered box: lipgloss .Width(n) renders
+	// n+2 total columns (the 2 border columns sit outside the width budget),
+	// so subtract 2 per pane to keep the combined view within the terminal.
+	rightW := m.width - paneW - 4
 
 	left := m.renderWorkspacePane(paneW)
 	right := m.renderTodoPane(rightW)
@@ -133,7 +136,21 @@ func (m *Model) renderTodoPane(w int) string {
 	if m.TodoCursor < 0 {
 		m.TodoCursor = 0
 	}
-	widths := m.columnWidths(PaneTodo, w)
+	// Budget the columns for the pane content width. The marker ("> " or
+	// "  ") and any nest indent are prepended in front of the columns below,
+	// so we leave room for them by passing a reduced width to columnWidths.
+	maxIndent := 0
+	for _, t := range todos {
+		if t.NestLevel() > maxIndent {
+			maxIndent = t.NestLevel()
+		}
+	}
+	markerW := 2
+	budget := w - markerW - maxIndent*2
+	if budget < 8 {
+		budget = 8
+	}
+	widths := m.columnWidths(PaneTodo, budget)
 	lines := make([]string, 0, len(todos)+1)
 	lines = append(lines, title)
 	for i := range todos {
@@ -210,20 +227,6 @@ func (m *Model) renderDashboard() string {
 		out = append(out, th.Style("secondary").Render(l))
 	}
 	return strings.Join(out, "\n")
-}
-
-func truncate(s string, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	if n <= 1 {
-		return "…"
-	}
-	return string(r[:n-1]) + "…"
 }
 
 func max(a, b int) int {
