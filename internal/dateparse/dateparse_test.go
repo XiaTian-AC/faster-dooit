@@ -127,3 +127,47 @@ func TestParseWhitespaceAndCase(t *testing.T) {
 		t.Errorf("upper-case weekday failed: %v", err)
 	}
 }
+
+func TestParseEdgeCases(t *testing.T) {
+	now := fixedNow() // 2026-08-02 12:00
+
+	// Invalid calendar dates are rejected (time.ParseInLocation refuses 2/30).
+	if _, err := Parse("2020-02-30", now); err == nil {
+		t.Error("2020-02-30 should be rejected")
+	}
+	if _, err := Parse("2020-13-01", now); err == nil {
+		t.Error("2020-13-01 should be rejected")
+	}
+
+	// Leap day is valid in a leap year.
+	if _, err := Parse("2024-02-29", now); err != nil {
+		t.Errorf("2024-02-29 should parse: %v", err)
+	}
+
+	// next with no weekday is rejected.
+	if _, err := Parse("next", now); err == nil {
+		t.Error(`"next" alone should be rejected`)
+	}
+
+	// zero durations are rejected (must be > 0).
+	if _, err := Parse("0d", now); err == nil {
+		t.Error(`"0d" should be rejected`)
+	}
+	if _, err := Parse("in 0 days", now); err == nil {
+		t.Error(`"in 0 days" should be rejected`)
+	}
+
+	// bare weekday without "next" is intentionally unsupported.
+	if _, err := Parse("monday", now); err == nil {
+		t.Error(`bare "monday" should be rejected (requires "next")`)
+	}
+
+	// hour shorthand preserves the time of day.
+	got, err := Parse("in 1 hour", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := now.Add(time.Hour); !got.Equal(want) {
+		t.Errorf(`"in 1 hour" = %v, want %v`, got, want)
+	}
+}

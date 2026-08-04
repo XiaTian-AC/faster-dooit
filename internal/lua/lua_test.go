@@ -2,6 +2,8 @@ package lua
 
 import (
 	"testing"
+
+	lua "github.com/yuin/gopher-lua"
 )
 
 func TestEvalDefaultConfig(t *testing.T) {
@@ -83,5 +85,63 @@ func TestSandboxNoOS(t *testing.T) {
 	_, err := EvalFileWithCode(`api.keys.set("j", "move_down"); return os.execute("echo hi")`)
 	if err == nil {
 		t.Error("expected os.execute to fail in sandboxed config")
+	}
+}
+
+func TestLayoutsReadFromConfig(t *testing.T) {
+	rt, err := EvalFile("../../config.lua")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.Layouts.Workspace) == 0 || rt.Layouts.Workspace[0] != "description" {
+		t.Errorf("workspace layout = %v, want [description]", rt.Layouts.Workspace)
+	}
+	want := []string{"status", "description", "due", "effort", "recurrence", "urgency"}
+	if len(rt.Layouts.Todo) != len(want) {
+		t.Fatalf("todo layout = %v, want %v", rt.Layouts.Todo, want)
+	}
+	for i, c := range want {
+		if rt.Layouts.Todo[i] != c {
+			t.Errorf("todo layout[%d] = %q, want %q", i, rt.Layouts.Todo[i], c)
+		}
+	}
+}
+
+func TestFormattersRegisteredPerField(t *testing.T) {
+	rt, _ := EvalFile("../../config.lua")
+	// Default config registers formatters for status, due, urgency, recurrence.
+	fields := map[string]int{
+		"status":     1,
+		"due":        1,
+		"urgency":    1,
+		"recurrence": 1,
+	}
+	check := func(name string, fns []*lua.LFunction) {
+		if len(fns) < fields[name] {
+			t.Errorf("formatter %s registered %d fns, want >= %d", name, len(fns), fields[name])
+		}
+	}
+	check("status", rt.Formatters.Todos.Status)
+	check("due", rt.Formatters.Todos.Due)
+	check("urgency", rt.Formatters.Todos.Urgency)
+	check("recurrence", rt.Formatters.Todos.Recurrence)
+}
+
+func TestApiNotifyRegistered(t *testing.T) {
+	// api.notify must exist and be callable without crashing.
+	rt, err := EvalFileWithCode(`api.notify("hello", "info")`)
+	if err != nil {
+		t.Fatalf("api.notify errored: %v", err)
+	}
+	rt.Close()
+}
+
+func TestKeysSetArray(t *testing.T) {
+	rt, err := EvalFileWithCode(`api.keys.set({"j","k"}, api.move_down)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.Keys["j"] != "move_down" || rt.Keys["k"] != "move_down" {
+		t.Errorf("array keys = %v, want both move_down", rt.Keys)
 	}
 }

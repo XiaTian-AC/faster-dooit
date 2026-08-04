@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -221,6 +222,81 @@ func TestUrgencyColorsRender(t *testing.T) {
 	if row1 == "" {
 		t.Fatal("urgency 1 should render")
 	}
+}
+
+// TestOverdueStatusRendersBang: an overdue todo (due in the past) renders the
+// "!" status marker, distinct from the pending "o".
+func TestOverdueStatusRendersBang(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	past := time.Now().Add(-2 * time.Hour)
+	todo := m.selectedTodo()
+	todo.Pending = true
+	todo.Due = &past
+	if got := todo.Status(); got != "overdue" {
+		t.Fatalf("Status() = %q, want overdue", got)
+	}
+	overdueRow := m.formatTodoColumn("status", todo)
+	pendingRow := m.formatTodoColumn("status", &model.Todo{Pending: true})
+	if overdueRow == pendingRow {
+		t.Fatalf("overdue status should differ from pending: %q vs %q", overdueRow, pendingRow)
+	}
+	// Strip ANSI and check the visible glyph differs.
+	if stripANSI(overdueRow) != "!" {
+		t.Fatalf("overdue status glyph = %q, want !", stripANSI(overdueRow))
+	}
+	if stripANSI(pendingRow) != "o" {
+		t.Fatalf("pending status glyph = %q, want o", stripANSI(pendingRow))
+	}
+}
+
+// TestRecurrenceCompletionPersistsAdvancedDue: completing a recurring todo
+// advances due and persists it (the due survives a reload from the store).
+func TestRecurrenceCompletionPersistsAdvancedDue(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	rec := 24 * time.Hour
+	todo := m.selectedTodo()
+	todo.Recurrence = &rec
+	due := time.Now().Add(-time.Hour)
+	todo.Due = &due
+	if err := m.store.SaveTodo(todo); err != nil {
+		t.Fatal(err)
+	}
+
+	m.actionToggleComplete(m)
+
+	// Reload from store and verify the advanced due persisted.
+	root, err := m.store.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := root.Children[0]
+	if len(ws.Todos) == 0 {
+		t.Fatal("todo missing after reload")
+	}
+	got := ws.Todos[0]
+	if !got.Pending {
+		t.Fatal("recurring todo must stay pending after completion")
+	}
+	if got.Due == nil || !got.Due.After(due) {
+		t.Fatalf("advanced due not persisted: %v (was %v)", got.Due, due)
+	}
+}
+
+// stripANSI removes ANSI escape sequences from a rendered cell.
+func stripANSI(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\x1b' {
+			for i < len(s) && s[i] != 'm' {
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }
 
 // ---- clipboard copy / paste ----

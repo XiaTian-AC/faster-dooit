@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/XiaTian-AC/faster-dooit/internal/lua"
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -92,6 +93,98 @@ func TestLayoutModeDecision(t *testing.T) {
 		m.width, m.height = c.w, c.h
 		if got := m.layoutMode(); got != c.want {
 			t.Errorf("layoutMode(%d,%d) = %v, want %v", c.w, c.h, got, c.want)
+		}
+	}
+}
+
+// TestLayoutModeMinSizeBoundaries: the too-small threshold follows config
+// (default 40x12), and a size exactly at the boundary is still renderable.
+func TestLayoutModeMinSizeBoundaries(t *testing.T) {
+	m := newTestApp(t)
+	// Exactly at default min: not too small.
+	m.width, m.height = 40, 12
+	if m.layoutMode() == layoutTooSmall {
+		t.Fatalf("40x12 should not be too small, got %v", m.layoutMode())
+	}
+	// One less on either axis flips to too-small.
+	m.width, m.height = 39, 12
+	if m.layoutMode() != layoutTooSmall {
+		t.Fatalf("39x12 should be too small, got %v", m.layoutMode())
+	}
+	m.width, m.height = 40, 11
+	if m.layoutMode() != layoutTooSmall {
+		t.Fatalf("40x11 should be too small, got %v", m.layoutMode())
+	}
+	// Config override: min_width=60 makes 50x30 too small.
+	rt, err := lua.EvalFileWithCode(`api.vars.min_width = 60`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	m.luaCfg = rt
+	m.width, m.height = 50, 30
+	if m.layoutMode() != layoutTooSmall {
+		t.Fatalf("50x30 with min_width=60 should be too small, got %v", m.layoutMode())
+	}
+}
+
+// TestScrollTopBoundary: with the cursor at the top, scroll stays 0 and the
+// first row is visible even when the pane is short.
+func TestScrollTopBoundary(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.TodoCursor = 0
+	for i := 0; i < 8; i++ {
+		todo := &model.Todo{Description: "item", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID}
+		if err := m.store.SaveTodo(todo); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	m.width, m.height = 80, 14
+	v := m.View()
+	if m.todoScroll != 0 {
+		t.Fatalf("todoScroll = %d, want 0 at top", m.todoScroll)
+	}
+	// First todo ("a") must be visible after the title.
+	if !strings.Contains(v, "o a") {
+		t.Fatalf("first todo should be visible at scroll 0:\n%s", v)
+	}
+}
+
+// TestDualToStackedTransition: resizing width across the 100-column boundary
+// must switch the rendered layout (dual-pane vs stacked) and keep all rows
+// within the terminal.
+func TestDualToStackedTransition(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.TodoCursor = 0
+
+	// Wide → dual pane.
+	m.width, m.height = 120, 30
+	dual := m.View()
+	dualIdx := strings.Index(dual, "Workspaces")
+	todoIdx := strings.Index(dual, "Todos")
+	if dualIdx < 0 || todoIdx < 0 {
+		t.Fatalf("dual pane missing titles:\n%s", dual)
+	}
+	if strings.Count(dual[:todoIdx], "\n") != strings.Count(dual[:dualIdx], "\n") {
+		t.Fatalf("dual pane: titles should share a line")
+	}
+
+	// Narrow → stacked (titles on different lines).
+	m.width, m.height = 80, 30
+	stacked := m.View()
+	wsLine := strings.Count(stacked[:strings.Index(stacked, "Workspaces")], "\n")
+	todoLine2 := strings.Count(stacked[:strings.Index(stacked, "Todos")], "\n")
+	if todoLine2 <= wsLine {
+		t.Fatalf("stacked: Todos should be below Workspaces")
+	}
+	for _, line := range strings.Split(stacked, "\n") {
+		if lw := lipgloss.Width(line); lw > 80 {
+			t.Errorf("stacked transition overflows by %d cols: %q", lw-80, line)
 		}
 	}
 }

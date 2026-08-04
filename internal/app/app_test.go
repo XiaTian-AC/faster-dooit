@@ -56,6 +56,40 @@ func TestInsertStatusBarShowsErrorAndField(t *testing.T) {
 	}
 }
 
+// TestLuaBarPrecedence: when config.lua defines bar widgets, they replace the
+// built-in mode/notice status bar entirely.
+func TestLuaBarPrecedence(t *testing.T) {
+	m := newTestAppLua(t)
+	if len(m.luaCfg.Bar) == 0 {
+		t.Fatal("expected bar widgets from config.lua")
+	}
+	v := m.renderStatusBar()
+	if v == "" {
+		t.Fatal("lua bar should render its widgets")
+	}
+	// The built-in fallback status bar joins mode+notice; the Lua bar path
+	// never falls back to it, so a bare mode chip isn't the only content.
+	if strings.TrimSpace(v) == "NORMAL" {
+		t.Fatalf("lua bar should not reduce to the built-in mode chip: %q", v)
+	}
+}
+
+// TestInsertStatusBarNoError: without an error notice, INSERT shows just the
+// edit field (no stale error text).
+func TestInsertStatusBarNoError(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.StartEdit("effort")
+	m.notice = ""
+	v := m.renderStatusBar()
+	if !strings.Contains(v, "editing effort") {
+		t.Fatalf("status bar should show edit field, got %q", v)
+	}
+	if strings.Contains(v, "invalid") {
+		t.Fatalf("status bar should not show stale error, got %q", v)
+	}
+}
+
 // TestNoticeClearedOnConfirmExit: an error shown while editing must disappear
 // once the edit is confirmed successfully and the app returns to NORMAL.
 func TestNoticeClearedOnConfirmExit(t *testing.T) {

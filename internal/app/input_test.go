@@ -2,6 +2,7 @@ package app
 
 import (
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -44,6 +45,34 @@ func TestEditDueAppliesValid(t *testing.T) {
 	if td := m.selectedTodo(); td == nil || td.Due == nil {
 		t.Fatalf("due not applied: %+v", m.selectedTodo())
 	}
+}
+
+// TestEditDuePersists verifies an edited due survives a reload from the store.
+func TestEditDuePersists(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.StartEdit("due")
+	m.input.SetValue("tomorrow")
+	m.ConfirmEdit()
+
+	root, err := m.store.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	todo := root.Children[0].Todos[0]
+	if todo.Due == nil {
+		t.Fatal("due not persisted to store")
+	}
+	tomorrow := time.Now().AddDate(0, 0, 1)
+	if !sameDayApp(*todo.Due, tomorrow) {
+		t.Fatalf("persisted due = %v, want tomorrow %v", todo.Due, tomorrow)
+	}
+}
+
+func sameDayApp(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }
 
 func TestEditDescriptionApplies(t *testing.T) {
@@ -132,4 +161,117 @@ func TestUpdateRoutesEscapeFromInsert(t *testing.T) {
 	if m.mode != ModeNormal {
 		t.Fatalf("mode after escape = %v, want NORMAL", m.mode)
 	}
+}
+
+// TestEditDueEmptyClears: confirming an empty due input removes the due date.
+func TestEditDueEmptyClears(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	now := time.Now()
+	todo := m.selectedTodo()
+	todo.Due = &now
+	m.store.SaveTodo(todo)
+
+	m.StartEdit("due")
+	m.input.SetValue("")
+	m.ConfirmEdit()
+	if m.mode != ModeNormal {
+		t.Fatalf("mode = %v, want NORMAL", m.mode)
+	}
+	if td := m.selectedTodo(); td.Due != nil {
+		t.Fatalf("due should be cleared, got %v", td.Due)
+	}
+}
+
+// TestEditEffortBoundaries: effort accepts non-negative integers and rejects
+// negatives / non-numeric input (staying in INSERT).
+func TestEditEffortBoundaries(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		m := newTestApp(t)
+		m.SetFocus(PaneTodo)
+		m.StartEdit("effort")
+		m.input.SetValue("30")
+		m.ConfirmEdit()
+		if m.mode != ModeNormal {
+			t.Fatalf("mode = %v, want NORMAL", m.mode)
+		}
+		if td := m.selectedTodo(); td.Effort != 30 {
+			t.Fatalf("effort = %d, want 30", td.Effort)
+		}
+	})
+	t.Run("negative-rejected", func(t *testing.T) {
+		m := newTestApp(t)
+		m.SetFocus(PaneTodo)
+		m.StartEdit("effort")
+		m.input.SetValue("-5")
+		m.ConfirmEdit()
+		if m.mode != ModeInsert {
+			t.Fatalf("negative effort should stay editing, mode = %v", m.mode)
+		}
+	})
+	t.Run("non-numeric-rejected", func(t *testing.T) {
+		m := newTestApp(t)
+		m.SetFocus(PaneTodo)
+		m.StartEdit("effort")
+		m.input.SetValue("abc")
+		m.ConfirmEdit()
+		if m.mode != ModeInsert {
+			t.Fatalf("non-numeric effort should stay editing, mode = %v", m.mode)
+		}
+	})
+	t.Run("empty-keeps", func(t *testing.T) {
+		m := newTestApp(t)
+		m.SetFocus(PaneTodo)
+		m.StartEdit("effort")
+		m.input.SetValue("")
+		m.ConfirmEdit()
+		if m.mode != ModeNormal {
+			t.Fatalf("empty effort should confirm, mode = %v", m.mode)
+		}
+	})
+}
+
+// TestEditRecurrenceBoundaries: recurrence accepts duration tokens and rejects
+// malformed input (staying in INSERT). Setting one forces the todo pending.
+func TestEditRecurrenceBoundaries(t *testing.T) {
+	t.Run("valid-sets-pending", func(t *testing.T) {
+		m := newTestApp(t)
+		m.SetFocus(PaneTodo)
+		m.StartEdit("recurrence")
+		m.input.SetValue("2d")
+		m.ConfirmEdit()
+		if m.mode != ModeNormal {
+			t.Fatalf("mode = %v, want NORMAL", m.mode)
+		}
+		td := m.selectedTodo()
+		if td.Recurrence == nil {
+			t.Fatal("recurrence not set")
+		}
+		if !td.Pending {
+			t.Fatal("setting recurrence must force pending")
+		}
+	})
+	t.Run("invalid-rejected", func(t *testing.T) {
+		m := newTestApp(t)
+		m.SetFocus(PaneTodo)
+		m.StartEdit("recurrence")
+		m.input.SetValue("2x")
+		m.ConfirmEdit()
+		if m.mode != ModeInsert {
+			t.Fatalf("invalid recurrence should stay editing, mode = %v", m.mode)
+		}
+	})
+	t.Run("empty-clears", func(t *testing.T) {
+		m := newTestApp(t)
+		m.SetFocus(PaneTodo)
+		m.StartEdit("recurrence")
+		m.input.SetValue("")
+		m.ConfirmEdit()
+		if m.mode != ModeNormal {
+			t.Fatalf("empty recurrence should confirm, mode = %v", m.mode)
+		}
+		if td := m.selectedTodo(); td.Recurrence != nil {
+			t.Fatalf("recurrence should be cleared, got %v", td.Recurrence)
+		}
+	})
 }
