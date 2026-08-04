@@ -85,6 +85,11 @@ type Runtime struct {
 	Subscribers []Subscriber
 	Timers      []Timer
 
+	// MinWidth/MinHeight are the minimum terminal size for the UI, from
+	// api.vars.min_width / api.vars.min_height (defaults 40/12).
+	MinWidth  int
+	MinHeight int
+
 	themeTable *lua.LTable // reference to api.vars.theme for readTheme
 	varsTable  *lua.LTable // reference to api.vars for readTheme
 }
@@ -412,6 +417,22 @@ func (rt *Runtime) readTheme() {
 				rt.Theme.UrgencyColors = colors
 			}
 		}
+	}
+
+	// api.vars.min_width / api.vars.min_height (numeric).
+	if rt.varsTable != nil {
+		if n, ok := L.GetField(rt.varsTable, "min_width").(lua.LNumber); ok {
+			rt.MinWidth = int(n)
+		}
+		if n, ok := L.GetField(rt.varsTable, "min_height").(lua.LNumber); ok {
+			rt.MinHeight = int(n)
+		}
+	}
+	if rt.MinWidth == 0 {
+		rt.MinWidth = 40
+	}
+	if rt.MinHeight == 0 {
+		rt.MinHeight = 12
 	}
 }
 
