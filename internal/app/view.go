@@ -20,8 +20,62 @@ var (
 	statusStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#81A1C1"))
 )
 
-// View implements tea.Model. Renders two side-by-side trees with a status
-// bar underneath. Real theming/formatting lands in Task 6.
+// layoutMode selects the responsive layout for the current terminal size.
+// Width and height are evaluated independently; either being too small
+// wins over everything.
+type layoutMode int
+
+const (
+	layoutNormal  layoutMode = iota // dual pane side-by-side
+	layoutStacked                   // stacked, single column
+	layoutTooSmall                  // stop rendering, show notice
+)
+
+const (
+	layoutWStack = 100 // width >= this: dual pane
+	layoutHOk    = 24  // height >= this: no viewport scroll
+)
+
+func (m *Model) layoutMode() layoutMode {
+	mw, mh := 40, 12
+	if m.luaCfg != nil {
+		if m.luaCfg.MinWidth > 0 {
+			mw = m.luaCfg.MinWidth
+		}
+		if m.luaCfg.MinHeight > 0 {
+			mh = m.luaCfg.MinHeight
+		}
+	}
+	if m.width < mw || m.height < mh {
+		return layoutTooSmall
+	}
+	if m.width < layoutWStack {
+		return layoutStacked
+	}
+	return layoutNormal
+}
+
+func (m *Model) minSize() (int, int) {
+	mw, mh := 40, 12
+	if m.luaCfg != nil {
+		if m.luaCfg.MinWidth > 0 {
+			mw = m.luaCfg.MinWidth
+		}
+		if m.luaCfg.MinHeight > 0 {
+			mh = m.luaCfg.MinHeight
+		}
+	}
+	return mw, mh
+}
+
+func (m *Model) renderTooSmall() string {
+	mw, mh := m.minSize()
+	return fmt.Sprintf("Terminal size too small: Width = %d Height = %d\nNeeded for current config: Width = %d Height = %d",
+		m.width, m.height, mw, mh)
+}
+
+// View implements tea.Model. Renders the two panes (side-by-side or stacked
+// depending on terminal width) with a status bar underneath.
 func (m *Model) View() string {
 	if m.quitting {
 		return "bye.\n"
@@ -29,35 +83,20 @@ func (m *Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "loading…\n"
 	}
+	if m.layoutMode() == layoutTooSmall {
+		return m.renderTooSmall()
+	}
 
 	// Help screen overlays the whole view.
 	if m.helpVisible {
 		return lipgloss.JoinVertical(lipgloss.Left, m.HelpView(), m.renderStatusBar())
 	}
 
-	paneW := m.width / 4 // workspace pane ≈ 20% per UI 规格 #1
-	if paneW < 16 {
-		paneW = 16
-	}
-	// Each pane is rendered inside a bordered box: lipgloss .Width(n) renders
-	// n+2 total columns (the 2 border columns sit outside the width budget),
-	// so subtract 2 per pane to keep the combined view within the terminal.
-	rightW := m.width - paneW - 4
-
-	left := m.renderWorkspacePane(paneW)
-	right := m.renderTodoPane(rightW)
-
 	var combined string
-	if m.focus == PaneWorkspace {
-		combined = lipgloss.JoinHorizontal(lipgloss.Top,
-			focusedBorder.Width(paneW).Render(left),
-			dimBorder.Width(rightW).Render(right),
-		)
+	if m.layoutMode() == layoutStacked {
+		combined = m.renderStacked()
 	} else {
-		combined = lipgloss.JoinHorizontal(lipgloss.Top,
-			dimBorder.Width(paneW).Render(left),
-			focusedBorder.Width(rightW).Render(right),
-		)
+		combined = m.renderDualPane()
 	}
 
 	status := m.renderStatusBar()
@@ -72,6 +111,165 @@ func (m *Model) View() string {
 		}
 	}
 	return content
+}
+
+// renderDualPane lays the two panes side by side. Each pane box is rendered
+// at Width(n) which yields n+2 total columns (2 border columns sit outside
+// the width budget); the panes receive the content width n-2 so rows fill
+// the box content area exactly.
+func (m *Model) renderDualPane() string {
+	paneW := m.width / 4 // workspace pane ≈ 20% per UI 规格 #1
+	if paneW < 16 {
+		paneW = 16
+	}
+	rightW := m.width - paneW - 4
+	// Content width inside the border: Width(n).Render gives n+2 columns, so
+	// content area is (n-2); pass the content width to the pane renderers.
+	left := m.renderWorkspacePane(paneW - 2)
+	right := m.renderTodoPane(rightW - 2)
+
+	var combined string
+	if m.focus == PaneWorkspace {
+		combined = lipgloss.JoinHorizontal(lipgloss.Top,
+			focusedBorder.Width(paneW).Render(left),
+			dimBorder.Width(rightW).Render(right),
+		)
+	} else {
+		combined = lipgloss.JoinHorizontal(lipgloss.Top,
+			dimBorder.Width(paneW).Render(left),
+			focusedBorder.Width(rightW).Render(right),
+		)
+	}
+	return combined
+}
+
+// renderStacked lays the two panes vertically, giving ~70% of the height to
+// the focused pane and the rest to the other. Each pane's rows are viewport
+// clipped by its own scroll offset.
+func (m *Model) renderStacked() string {
+	statusH := 1
+	avail := m.height - statusH
+	focusH := avail * 7 / 10
+	otherH := avail - focusH
+	if otherH < 3 {
+		otherH = 3
+		focusH = avail - otherH
+	}
+	// Content width inside the bordered box: Width(n).Render yields n+2 total
+	// columns (border outside), and the content area is n-4 (border 2 +
+	// padding 2). Pass the content width to the pane renderers.
+	contentW := m.width - 4
+	boxW := m.width - 2
+
+	var top, bottom string
+	if m.focus == PaneWorkspace {
+		top = focusedBorder.Width(boxW).Render(m.renderWorkspacePaneClipped(contentW, focusH))
+		bottom = dimBorder.Width(boxW).Render(m.renderTodoPaneClipped(contentW, otherH))
+	} else {
+		top = dimBorder.Width(boxW).Render(m.renderWorkspacePaneClipped(contentW, otherH))
+		bottom = focusedBorder.Width(boxW).Render(m.renderTodoPaneClipped(contentW, focusH))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, top, bottom)
+}
+
+// renderWorkspacePaneClipped renders the workspace pane limited to maxLines
+// rows, scrolled so the cursor row stays visible. The title line is pinned;
+// only the content rows scroll.
+func (m *Model) renderWorkspacePaneClipped(contentW, maxLines int) string {
+	ws := m.VisibleWorkspaces()
+	m.clampWorkspaceScroll(len(ws), maxLines)
+	return sliceRenderedLines(m.renderWorkspacePane(contentW), m.workspaceScroll, maxLines)
+}
+
+// renderTodoPaneClipped renders the todo pane limited to maxLines rows,
+// scrolled so the cursor row stays visible. The title line is pinned.
+func (m *Model) renderTodoPaneClipped(contentW, maxLines int) string {
+	todos := m.visibleTodos()
+	m.clampTodoScroll(len(todos), maxLines)
+	return sliceRenderedLines(m.renderTodoPane(contentW), m.todoScroll, maxLines)
+}
+
+// clampWorkspaceScroll keeps the viewport window positioned so the cursor
+// row stays inside the visible maxLines rows. scroll counts content rows only
+// (the title is pinned above the viewport).
+func (m *Model) clampWorkspaceScroll(total, maxLines int) {
+	if total == 0 {
+		m.workspaceScroll = 0
+		return
+	}
+	if maxLines <= 1 {
+		m.workspaceScroll = 0
+		return
+	}
+	// maxLines includes the pinned title, so the content window is one shorter.
+	contentLines := maxLines - 1
+	cursorLine := m.WorkspaceCursor
+	m.workspaceScroll = clampScroll(m.workspaceScroll, cursorLine, total, contentLines)
+}
+
+// clampTodoScroll keeps the todo cursor row visible inside the viewport.
+// scroll counts content rows only (the title is pinned).
+func (m *Model) clampTodoScroll(total, maxLines int) {
+	if total == 0 {
+		m.todoScroll = 0
+		return
+	}
+	if maxLines <= 1 {
+		m.todoScroll = 0
+		return
+	}
+	contentLines := maxLines - 1
+	cursorLine := m.TodoCursor
+	m.todoScroll = clampScroll(m.todoScroll, cursorLine, total, contentLines)
+}
+
+// clampScroll returns the scroll offset that keeps cursorLine (0-based in the
+// content rows, title excluded) within a contentLines window.
+func clampScroll(scroll, cursorLine, total, contentLines int) int {
+	// Keep the cursor in [scroll, scroll+contentLines).
+	if cursorLine < scroll {
+		scroll = cursorLine
+	}
+	if cursorLine >= scroll+contentLines {
+		scroll = cursorLine - contentLines + 1
+	}
+	// Clamp to valid range.
+	maxScroll := total - contentLines
+	if scroll < 0 {
+		scroll = 0
+	}
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if scroll > maxScroll {
+		scroll = maxScroll
+	}
+	return scroll
+}
+
+// sliceRenderedLines pins the first line (title) and returns a window of
+// [scroll, scroll+contentLines) of the remaining content lines, dropping the
+// rest.
+func sliceRenderedLines(s string, scroll, maxLines int) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	title := lines[0]
+	body := lines[1:]
+	if scroll < 0 {
+		scroll = 0
+	}
+	if scroll >= len(body) {
+		scroll = max(0, len(body)-1)
+	}
+	contentLines := max(0, maxLines-1)
+	end := scroll + contentLines
+	if end > len(body) {
+		end = len(body)
+	}
+	win := append([]string{title}, body[scroll:end]...)
+	return strings.Join(win, "\n")
 }
 
 func (m *Model) renderWorkspacePane(w int) string {
