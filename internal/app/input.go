@@ -85,6 +85,7 @@ func (m *Model) ConfirmEdit() tea.Cmd {
 	m.mode = ModeNormal
 	m.editField = ""
 	m.editPlaceholder = ""
+	m.clearNotice()
 	m.BumpVersion()
 	return nil
 }
@@ -95,6 +96,7 @@ func (m *Model) cancelMode() {
 	m.editField = ""
 	m.editPlaceholder = ""
 	m.confirmCallback = nil
+	m.clearNotice()
 	m.BumpVersion()
 }
 
@@ -131,7 +133,9 @@ func (m *Model) StartConfirmPrompt(prompt string, cb func() tea.Cmd) tea.Cmd {
 	return nil
 }
 
-// Notify shows a transient message in the status/notification area.
+// Notify shows a transient message in the status/notification area. It is
+// cleared by the next successful action that leaves the current mode (see
+// clearNotice).
 func (m *Model) Notify(msg string, level string) tea.Cmd {
 	m.notice = msg
 	m.noticeLevel = level
@@ -139,11 +143,18 @@ func (m *Model) Notify(msg string, level string) tea.Cmd {
 	return nil
 }
 
+// clearNotice drops any pending notification.
+func (m *Model) clearNotice() {
+	m.notice = ""
+	m.noticeLevel = ""
+}
+
 // confirmYes executes the pending confirm callback.
 func (m *Model) confirmYes() tea.Cmd {
 	cb := m.confirmCallback
 	m.confirmCallback = nil
 	m.mode = ModeNormal
+	m.clearNotice()
 	m.BumpVersion()
 	if cb != nil {
 		return cb()
@@ -155,6 +166,7 @@ func (m *Model) confirmYes() tea.Cmd {
 func (m *Model) confirmNo() tea.Cmd {
 	m.confirmCallback = nil
 	m.mode = ModeNormal
+	m.clearNotice()
 	m.BumpVersion()
 	return nil
 }
@@ -224,10 +236,12 @@ func (m *Model) confirmMode() tea.Cmd {
 	case ModeSearch:
 		m.filter = m.input.Value()
 		m.mode = ModeNormal
+		m.clearNotice()
 		m.BumpVersion()
 		return nil
 	case ModeSort:
 		m.mode = ModeNormal
+		m.clearNotice()
 		m.BumpVersion()
 		return m.actionSort(m.input.Value())
 	}

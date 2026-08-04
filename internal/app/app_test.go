@@ -56,6 +56,36 @@ func TestInsertStatusBarShowsErrorAndField(t *testing.T) {
 	}
 }
 
+// TestNoticeClearedOnConfirmExit: an error shown while editing must disappear
+// once the edit is confirmed successfully and the app returns to NORMAL.
+func TestNoticeClearedOnConfirmExit(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.StartEdit("due")
+	m.notice = "invalid date: unknown format"
+	m.input.SetValue("")
+	// Confirming with an empty value clears the due and succeeds.
+	m.ConfirmEdit()
+	if m.mode != ModeNormal {
+		t.Fatalf("mode = %v, want NORMAL", m.mode)
+	}
+	if m.notice != "" {
+		t.Fatalf("notice should be cleared after successful confirm, got %q", m.notice)
+	}
+}
+
+// TestNoticeClearedOnCancel: escaping the insert mode clears any pending error.
+func TestNoticeClearedOnCancel(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.StartEdit("due")
+	m.notice = "invalid date: unknown format"
+	m.cancelMode()
+	if m.notice != "" {
+		t.Fatalf("notice should be cleared after cancel, got %q", m.notice)
+	}
+}
+
 func TestFocusWorkspacePane(t *testing.T) {
 	m := newTestApp(t)
 	if m.focus != 0 {
