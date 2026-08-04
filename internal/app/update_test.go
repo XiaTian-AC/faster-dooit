@@ -97,6 +97,47 @@ func TestResizeCmdDetectsChange(t *testing.T) {
 	}
 }
 
+// TestResizeCmdEachDirection: width-only, height-only, and both-changed
+// resizes must each produce a WindowSizeMsg; no-change must not.
+func TestResizeCmdEachDirection(t *testing.T) {
+	cases := []struct {
+		name          string
+		curW, curH    int
+		newW, newH    int
+		wantChangeMsg bool
+	}{
+		{"horizontal-only", 120, 30, 90, 30, true},
+		{"vertical-only", 120, 30, 120, 20, true},
+		{"both", 120, 30, 70, 18, true},
+		{"none", 120, 30, 120, 30, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := newTestApp(t)
+			m.width, m.height = c.curW, c.curH
+			cmd := m.resizeCmdFromSize(c.newW, c.newH)
+			if cmd == nil {
+				t.Fatalf("resizeCmdFromSize returned nil command")
+			}
+			got := cmd()
+			hasMsg := false
+			switch gm := got.(type) {
+			case tea.WindowSizeMsg:
+				hasMsg = true
+			case tea.BatchMsg:
+				for _, sub := range gm {
+					if _, ok := sub().(tea.WindowSizeMsg); ok {
+						hasMsg = true
+					}
+				}
+			}
+			if hasMsg != c.wantChangeMsg {
+				t.Fatalf("resize produced WindowSizeMsg = %v, want %v (got %T)", hasMsg, c.wantChangeMsg, got)
+			}
+		})
+	}
+}
+
 // TestResizeRefreshesLayout: a WindowSizeMsg must update the dimensions,
 // bump the version, and reset scroll offsets so a shrink from tall to short
 // doesn't leave the old scroll sticking out of the new viewport.

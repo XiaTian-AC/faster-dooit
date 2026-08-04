@@ -43,13 +43,17 @@ func (m *Model) startResizeTick() tea.Cmd {
 
 // pollTerminalSize checks the actual terminal size and returns a
 // tea.WindowSizeMsg if it changed, or nil to keep the current frame.
+// The size is probed from stdout, falling back to stdin: on Windows the
+// stdout handle can be invalid under some terminals while stdin (CONIN$)
+// remains a valid console handle.
 func (m *Model) pollTerminalSize() tea.Cmd {
-	w, h, err := term.GetSize(os.Stdout.Fd())
-	if err != nil {
-		// Can't query the size (e.g. piped output) — do nothing.
-		return m.startResizeTick()
+	for _, fd := range []uintptr{os.Stdout.Fd(), os.Stdin.Fd()} {
+		if w, h, err := term.GetSize(fd); err == nil {
+			return m.resizeCmdFromSize(w, h)
+		}
 	}
-	return m.resizeCmdFromSize(w, h)
+	// Can't query the size (e.g. piped output) — do nothing.
+	return m.startResizeTick()
 }
 
 // resizeCmdFromSize builds the resize command for a newly-detected size:
