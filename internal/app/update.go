@@ -30,6 +30,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// so row caches stay warm (decoupled from the 1s tick).
 		return m, m.startBarTick()
 
+	case resizeTickMsg:
+		// Poll the terminal size (Windows has no SIGWINCH); only repaint on
+		// an actual change via a WindowSizeMsg.
+		return m, m.pollTerminalSize()
+
 	case tea.KeyMsg:
 		// Global quit shortcuts work in every mode.
 		if msg.Type == tea.KeyCtrlC || msg.Type == tea.KeyCtrlQ {

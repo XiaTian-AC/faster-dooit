@@ -48,6 +48,55 @@ func TestHelpQuitStillWorks(t *testing.T) {
 	}
 }
 
+// TestResizePollReschedules: a resizeTickMsg must be handled without
+// crashing and must reschedule the poll command (in non-TTY test runs the
+// size query fails and we simply reschedule, keeping the loop alive).
+func TestResizePollReschedules(t *testing.T) {
+	m := newTestApp(t)
+	m.width, m.height = 120, 30
+	m.todoScroll = 5
+	_, cmd := m.Update(resizeTickMsg{})
+	if cmd == nil {
+		t.Fatal("resizeTickMsg should reschedule the poll command")
+	}
+}
+
+// TestResizeCmdDetectsChange: the size-change branch must emit a
+// WindowSizeMsg (driving scroll reset + repaint) only when the size differs.
+func TestResizeCmdDetectsChange(t *testing.T) {
+	m := newTestApp(t)
+	m.width, m.height = 120, 30
+
+	// Same size → no WindowSizeMsg, just a reschedule.
+	msg := m.resizeCmdFromSize(120, 30)
+	if msg == nil {
+		t.Fatal("same-size poll should still reschedule")
+	}
+
+	// Changed size → the command stream must carry a WindowSizeMsg.
+	cmd := m.resizeCmdFromSize(80, 14)
+	if cmd == nil {
+		t.Fatal("changed-size poll should return a command")
+	}
+	got := cmd()
+	switch gm := got.(type) {
+	case tea.WindowSizeMsg:
+		// directly a window size
+	case tea.BatchMsg:
+		found := false
+		for _, sub := range gm {
+			if _, ok := sub().(tea.WindowSizeMsg); ok {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("BatchMsg should contain a WindowSizeMsg, got %#v", gm)
+		}
+	default:
+		t.Fatalf("changed-size poll should emit WindowSizeMsg or BatchMsg, got %T", got)
+	}
+}
+
 // TestResizeRefreshesLayout: a WindowSizeMsg must update the dimensions,
 // bump the version, and reset scroll offsets so a shrink from tall to short
 // doesn't leave the old scroll sticking out of the new viewport.

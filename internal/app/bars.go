@@ -1,10 +1,12 @@
 package app
 
 import (
+	"os"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/term"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/theme"
 )
@@ -18,11 +20,49 @@ import (
 // tickMsg carries the current time to the bar widgets once per second.
 type tickMsg time.Time
 
+// resizeTickMsg triggers a terminal-size poll. Windows has no SIGWINCH, so
+// Bubble Tea never learns about resizes on its own; polling is the standard
+// cross-platform fallback.
+type resizeTickMsg struct{}
+
 // startBarTick schedules the 1s tick that drives clock bar widgets.
 func (m *Model) startBarTick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+// startResizeTick schedules a periodic terminal-size poll. When the detected
+// size differs from the model's current width/height, it produces a
+// tea.WindowSizeMsg so the normal resize path (scroll reset + repaint) runs.
+func (m *Model) startResizeTick() tea.Cmd {
+	return tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg {
+		return resizeTickMsg{}
+	})
+}
+
+// pollTerminalSize checks the actual terminal size and returns a
+// tea.WindowSizeMsg if it changed, or nil to keep the current frame.
+func (m *Model) pollTerminalSize() tea.Cmd {
+	w, h, err := term.GetSize(os.Stdout.Fd())
+	if err != nil {
+		// Can't query the size (e.g. piped output) — do nothing.
+		return m.startResizeTick()
+	}
+	return m.resizeCmdFromSize(w, h)
+}
+
+// resizeCmdFromSize builds the resize command for a newly-detected size:
+// a WindowSizeMsg when it differs from the model's current size, otherwise a
+// bare reschedule. Extracted for testing.
+func (m *Model) resizeCmdFromSize(w, h int) tea.Cmd {
+	if w == m.width && h == m.height {
+		return m.startResizeTick()
+	}
+	return tea.Batch(
+		func() tea.Msg { return tea.WindowSizeMsg{Width: w, Height: h} },
+		m.startResizeTick(),
+	)
 }
 
 // renderStatusBar returns the single-line status area: Lua bar widgets (or
