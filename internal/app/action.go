@@ -43,6 +43,7 @@ func (m *Model) defaultActions() map[string]Action {
 		"edit_recurrence":        wrap(m.actionEditRecurrence),
 		"edit_effort":            wrap(m.actionEditEffort),
 		"show_help":              wrap(m.actionShowHelp),
+		"redraw":                 wrap(m.actionRedraw),
 		"quit":                   wrap(m.actionQuit),
 	}
 }
@@ -716,6 +717,15 @@ func (m *Model) actionEditEffort(_ *Model) tea.Cmd      { return m.StartEdit("ef
 
 func (m *Model) actionStartSearch(_ *Model) tea.Cmd { return m.StartSearch() }
 func (m *Model) actionStartSort(_ *Model) tea.Cmd   { return m.StartSort() }
+
+// actionRedraw forces a manual re-render: repaint the current frame from the
+// latest state and re-poll the terminal size. Useful when a terminal fails to
+// report a resize (e.g. under some ConPTY setups). Available to Lua config as
+// api.redraw, bound to "/" by default.
+func (m *Model) actionRedraw(_ *Model) tea.Cmd {
+	m.BumpVersion()
+	return m.pollTerminalSize()
+}
 
 func (m *Model) actionShowHelp(_ *Model) tea.Cmd {
 	m.helpVisible = !m.helpVisible

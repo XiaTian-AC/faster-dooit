@@ -104,7 +104,8 @@ api.keys.set("P", api.paste_above)
 api.keys.set("c", api.toggle_complete)
 api.keys.set({ "=", "+" }, api.increase_urgency)
 api.keys.set({ "-", "_" }, api.decrease_urgency)
-api.keys.set("/", api.start_search)
+api.keys.set("/", api.redraw)
+api.keys.set("S", api.start_search)
 api.keys.set("?", api.show_help)
 
 -- Events / timers (plumbing is live; the app drives them in Task 6).

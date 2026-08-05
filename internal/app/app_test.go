@@ -190,6 +190,43 @@ func TestKeyManager_EscapeClearsBuffer(t *testing.T) {
 	}
 }
 
+// TestLuaKeyBindingsOverride: when config.lua rebinds a key, the key manager
+// built with the Lua config must dispatch the new action instead of the
+// hard-coded default.
+func TestLuaKeyBindingsOverride(t *testing.T) {
+	km := newKeyManager(bindingsFromLua(map[string]string{"j": "redraw"}))
+	if a := km.feed('j'); a != "redraw" {
+		t.Fatalf("Lua j should dispatch redraw, got %q", a)
+	}
+}
+
+// TestLuaKeyBindingsChords: multi-char chord keys from Lua build nested tables.
+func TestLuaKeyBindingsChords(t *testing.T) {
+	km := newKeyManager(bindingsFromLua(map[string]string{
+		"gg": "go_to_top",
+		"xx": "delete",
+	}))
+	if a := km.feed('g'); a != "" {
+		t.Fatalf("'g' alone should be a prefix, got %q", a)
+	}
+	if a := km.feed('g'); a != "go_to_top" {
+		t.Fatalf("'gg' should dispatch go_to_top, got %q", a)
+	}
+}
+
+// TestRedrawAction: the redraw action bumps the version and returns a command.
+func TestRedrawAction(t *testing.T) {
+	m := newTestApp(t)
+	v0 := m.version
+	cmd := m.actionRedraw(m)
+	if m.version == v0 {
+		t.Fatal("redraw should bump the version")
+	}
+	if cmd == nil {
+		t.Fatal("redraw should return a command (resize poll)")
+	}
+}
+
 // TestAction_AddSibling verifies that `a` on the workspace pane appends a
 // workspace child and persists it.
 func TestAction_AddSibling(t *testing.T) {

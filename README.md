@@ -88,9 +88,11 @@ api.vars.theme.red       = "#FF5555"
 | `J` / `K` | shift down / up | `xx` | delete (confirm) |
 | `y` / `Y` | copy description / model | `p` / `P` | paste below / above |
 | `c` | toggle complete | `=` / `+` / `-` / `_` | increase / decrease urgency |
-| `/` | search | `?` | help |
+| `/` | redraw | `S` / `?` | search / help |
 | `tab` / `h` / `l` | switch pane | `enter` | edit description |
 | `ctrl+s` | sort | `ctrl+q` / `ctrl+c` | quit |
+
+All keybindings are configurable from `config.lua` via `api.keys.set(key, api.<action>)` (see the Lua examples below).
 
 ## Parity matrix
 

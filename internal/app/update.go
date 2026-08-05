@@ -63,14 +63,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.actions["quit"](m)
 		}
 
-		// Ctrl+L manually forces a re-render: repaint the current frame from
-		// the latest state and re-poll the terminal size. Works in every mode
-		// (a vim-style redraw).
-		if msg.Type == tea.KeyCtrlL {
-			m.BumpVersion()
-			return m, m.pollTerminalSize()
-		}
-
 		// While help is shown, swallow every other key and return to NORMAL.
 		if m.helpVisible {
 			m.helpVisible = false

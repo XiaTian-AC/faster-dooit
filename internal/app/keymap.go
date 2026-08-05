@@ -12,8 +12,34 @@ type keyManager struct {
 	table  map[string]any
 }
 
+// newKeyManager(bindings map[string]any) *keyManager {
 func newKeyManager(bindings map[string]any) *keyManager {
 	return &keyManager{table: bindings}
+}
+
+// bindingsFromLua converts the flat Lua key map (key → action name) into the
+// keyManager's nested table: single-char keys map to an action string, chords
+// nest into sub-tables ("gg" → {"g": {"g": "go_to_top"}}).
+func bindingsFromLua(keys map[string]string) map[string]any {
+	table := map[string]any{}
+	for key, action := range keys {
+		cur := table
+		for i := 0; i < len(key); i++ {
+			k := string(key[i])
+			last := i == len(key)-1
+			if last {
+				cur[k] = action
+				continue
+			}
+			sub, ok := cur[k].(map[string]any)
+			if !ok {
+				sub = map[string]any{}
+				cur[k] = sub
+			}
+			cur = sub
+		}
+	}
+	return table
 }
 
 // feed consumes one rune and returns the resolved action name, or "" if
@@ -101,7 +127,8 @@ func defaultKeyBindings() map[string]any {
 		"+":   "increase_urgency",
 		"-":   "decrease_urgency",
 		"_":   "decrease_urgency",
-		"/":   "start_search",
+		"/":   "redraw",
+		"S":   "start_search",
 		"?":   "show_help",
 		"tab": "switch_focus",
 		"h":   "switch_focus",

@@ -104,7 +104,7 @@ var actionNames = []string{
 	"copy_model", "paste_below", "paste_above", "switch_focus",
 	"enter_edit_description", "start_search", "start_sort",
 	"edit_description", "edit_due", "edit_recurrence", "edit_effort",
-	"show_help", "quit",
+	"show_help", "redraw", "quit",
 }
 
 // EvalFile evaluates the Lua file at path and returns the resulting Runtime.

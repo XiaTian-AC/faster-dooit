@@ -109,13 +109,18 @@ type pendingResizeState struct {
 // New constructs the bubbletea model wired to the store and optional Lua
 // config runtime.
 func New(st *store.Store, luaCfg *lua.Runtime) *Model {
+	bindings := defaultKeyBindings()
+	if luaCfg != nil && len(luaCfg.Keys) > 0 {
+		// Config.lua key bindings take precedence over the defaults.
+		bindings = bindingsFromLua(luaCfg.Keys)
+	}
 	m := &Model{
 		store:    st,
 		luaCfg:   luaCfg,
 		focus:    PaneWorkspace,
 		mode:     ModeNormal,
 		expanded: map[int64]bool{},
-		keys:     newKeyManager(defaultKeyBindings()), //nolint:exhaustruct
+		keys:     newKeyManager(bindings), //nolint:exhaustruct
 	}
 	m.actions = m.defaultActions()
 	return m
