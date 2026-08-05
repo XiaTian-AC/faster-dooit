@@ -8,21 +8,28 @@ A from-scratch, high-performance vim-style TUI todo manager in **Go + Bubble Tea
 
 ## 安装
 
-### Scoop（推荐）
+### Scoop（推荐，个人 bucket）
 
 ```powershell
-# 一次性添加我的个人 bucket（临时方案）
+# 一次性添加我的个人 bucket
 scoop bucket add faster-dooit https://github.com/XiaTian-AC/scoop-faster-dooit
 scoop install faster-dooit
 ```
 
 安装后命令为 `fdooit`（不是 `faster-dooit`）。
+个人 bucket 的 manifest 由发布 CI 自动更新（打 tag 即全自动）。
 
 ### Winget
 
 ```powershell
 winget install faster-dooit
 ```
+
+> **状态**：已提交官方 winget-pkgs PR（微软审核中）。审核通过前可用 scoop 个人 bucket 或源码构建安装。
+
+### 官方 Scoop Extras
+
+已提交 PR（ScoopInstaller/Extras）。注意：Extras 对 GitHub 托管的包有 **100 star / 50 fork** 社区门槛，新项目通常达不到，最终可能只保留个人 bucket 渠道。详见 [RELEASING.md](docs/RELEASING.md)。
 
 ### 手动构建
 

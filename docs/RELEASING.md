@@ -52,10 +52,26 @@ wingetcreate update --urls "https://github.com/XiaTian-AC/faster-dooit/releases/
 
 ## 发布状态（v0.1.0）
 
-- ✅ GitHub Release v0.1.0（跨平台）
-- ✅ 个人 bucket：`scoop bucket add faster-dooit https://github.com/XiaTian-AC/scoop-faster-dooit`
-- ✅ Scoop 官方 PR：https://github.com/ScoopInstaller/Extras/pull/18463
-- ✅ Winget PR：https://github.com/microsoft/winget-pkgs/pull/412633
+| 渠道 | 状态 | 说明 |
+|---|---|---|
+| GitHub Release v0.1.0 | ✅ | 跨平台 zip/tar.gz + checksums |
+| 个人 bucket | ✅ | `scoop bucket add faster-dooit https://github.com/XiaTian-AC/scoop-faster-dooit`，CI 自动更新 manifest |
+| Scoop 官方 Extras | ⏳ 待定 | PR #18463；技术检查已过，但卡 **100 star/50 fork** 社区门槛，可能被关或特批 |
+| Winget | ⏳ 审核中 | PR #412633；wingetbot 流水线验证中，微软 reviewer 审核 |
+
+**重要认知**：Scoop Extras 对 GitHub 托管的包要求 ≥100 star 或 ≥50 fork（`not-meet-criteria` 标签）。新项目通常达不到，**个人 bucket 是主要分发路径**，官方渠道是"star 上来后的加分项"。
+
+## 主路径（发布后立即可用）
+
+每次发版：
+
+```powershell
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+CI 自动：跨平台 Release + 更新个人 bucket manifest。用户 `scoop update faster-dooit` 即可升级。
+
+官方渠道（winget/scoop Extras）在新版本发布后需**手动**更新 PR——winget 用 `wingetcreate update`，scoop Extras 更新 `bucket/faster-dooit.json`（`.scoop/` 模板渲染后）。
 
 ## 手动触发（不重建 Release）
 
