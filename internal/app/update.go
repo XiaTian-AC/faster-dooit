@@ -1,6 +1,8 @@
 package app
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -11,13 +13,25 @@ import (
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		// Reset per-pane scroll offsets so a shrink to a shorter terminal
-		// never leaves the old scroll sticking out of the new viewport.
-		m.workspaceScroll = 0
-		m.todoScroll = 0
-		m.BumpVersion()
+		// Debounce: during a drag the terminal floods sizes; record the
+		// latest and apply it after a short quiet period (one repaint).
+		m.pendingResize = &pendingResizeState{w: msg.Width, h: msg.Height}
+		return m, tea.Tick(resizeDebounce, func(time.Time) tea.Msg {
+			return resizeDebounceMsg{}
+		})
+
+	case resizeDebounceMsg:
+		// Apply the final debounced size (if any).
+		if pr := m.pendingResize; pr != nil {
+			m.pendingResize = nil
+			m.width = pr.w
+			m.height = pr.h
+			// Reset per-pane scroll offsets so a shrink to a shorter terminal
+			// never leaves the old scroll sticking out of the new viewport.
+			m.workspaceScroll = 0
+			m.todoScroll = 0
+			m.BumpVersion()
+		}
 		return m, nil
 
 	case noticeMsg:

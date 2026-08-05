@@ -172,9 +172,9 @@ func TestTerminalSizeProbe(t *testing.T) {
 	}
 }
 
-// TestResizeRefreshesLayout: a WindowSizeMsg must update the dimensions,
-// bump the version, and reset scroll offsets so a shrink from tall to short
-// doesn't leave the old scroll sticking out of the new viewport.
+// TestResizeRefreshesLayout: a WindowSizeMsg is debounced then applied on the
+// debounce tick, updating dimensions, bumping the version, and resetting
+// scroll offsets so a shrink from tall to short doesn't leave stale scroll.
 func TestResizeRefreshesLayout(t *testing.T) {
 	m := newTestApp(t)
 	m.SetFocus(PaneTodo)
@@ -182,13 +182,22 @@ func TestResizeRefreshesLayout(t *testing.T) {
 	m.todoScroll = 50 // stale scroll from a larger terminal
 	m.width, m.height = 150, 30
 
-	// Shrink to a short terminal.
+	// First size arrives: recorded as pending, not applied yet.
 	_, cmd := m.Update(tea.WindowSizeMsg{Width: 150, Height: 14})
-	if cmd != nil {
-		t.Fatalf("resize should not produce a command, got %v", cmd)
+	if cmd == nil {
+		t.Fatal("resize should schedule a debounce tick")
 	}
-	if m.width != 150 || m.height != 14 {
-		t.Fatalf("size not updated: %dx%d", m.width, m.height)
+	if m.height == 14 {
+		t.Fatal("size should not apply before the debounce tick")
+	}
+
+	// A second size arrives during the window: overrides the pending one.
+	_, _ = m.Update(tea.WindowSizeMsg{Width: 130, Height: 12})
+
+	// Debounce tick fires: applies the final size.
+	_, _ = m.Update(resizeDebounceMsg{})
+	if m.width != 130 || m.height != 12 {
+		t.Fatalf("debounced size not applied: %dx%d, want 130x12", m.width, m.height)
 	}
 	if m.todoScroll != 0 || m.workspaceScroll != 0 {
 		t.Fatalf("scroll should reset on resize, got %d/%d", m.workspaceScroll, m.todoScroll)
@@ -196,9 +205,31 @@ func TestResizeRefreshesLayout(t *testing.T) {
 	// Render must clamp the stale scroll into range (no panic, no overflow).
 	v := m.View()
 	for _, line := range splitLines(v) {
-		if lw := lipgloss.Width(line); lw > 150 {
-			t.Errorf("line overflows after resize by %d cols: %q", lw-150, line)
+		if lw := lipgloss.Width(line); lw > 130 {
+			t.Errorf("line overflows after resize by %d cols: %q", lw-130, line)
 		}
+	}
+}
+
+// TestResizeDebounceCollapsesBursts: many rapid sizes collapse to one repaint.
+func TestResizeDebounceCollapsesBursts(t *testing.T) {
+	m := newTestApp(t)
+	m.width, m.height = 150, 30
+	v0 := m.version
+	for i := 1; i <= 10; i++ {
+		_, _ = m.Update(tea.WindowSizeMsg{Width: 150 - i, Height: 30})
+	}
+	// No repaint happened during the burst (version unchanged).
+	if m.version != v0 {
+		t.Fatalf("version should not bump during debounce, got %d -> %d", v0, m.version)
+	}
+	// One debounce tick applies the last size and repaints once.
+	_, _ = m.Update(resizeDebounceMsg{})
+	if m.width != 140 {
+		t.Fatalf("final size = %d, want 140", m.width)
+	}
+	if m.version == v0 {
+		t.Fatal("debounce tick should bump the version")
 	}
 }
 

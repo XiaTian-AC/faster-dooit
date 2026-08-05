@@ -181,7 +181,7 @@ func (m *Model) renderStacked() string {
 func (m *Model) renderWorkspacePaneClipped(contentW, maxLines int) string {
 	ws := m.VisibleWorkspaces()
 	m.clampWorkspaceScroll(len(ws), maxLines)
-	return sliceRenderedLines(m.renderWorkspacePane(contentW), m.workspaceScroll, maxLines)
+	return m.renderWorkspacePaneViewport(contentW, m.workspaceScroll, maxLines)
 }
 
 // renderTodoPaneClipped renders the todo pane limited to maxLines rows,
@@ -189,7 +189,7 @@ func (m *Model) renderWorkspacePaneClipped(contentW, maxLines int) string {
 func (m *Model) renderTodoPaneClipped(contentW, maxLines int) string {
 	todos := m.visibleTodos()
 	m.clampTodoScroll(len(todos), maxLines)
-	return sliceRenderedLines(m.renderTodoPane(contentW), m.todoScroll, maxLines)
+	return m.renderTodoPaneViewport(contentW, m.todoScroll, maxLines)
 }
 
 // clampWorkspaceScroll keeps the viewport window positioned so the cursor
@@ -250,32 +250,16 @@ func clampScroll(scroll, cursorLine, total, contentLines int) int {
 	return scroll
 }
 
-// sliceRenderedLines pins the first line (title) and returns a window of
-// [scroll, scroll+contentLines) of the remaining content lines, dropping the
-// rest.
-func sliceRenderedLines(s string, scroll, maxLines int) string {
-	lines := strings.Split(s, "\n")
-	if len(lines) == 0 {
-		return ""
-	}
-	title := lines[0]
-	body := lines[1:]
-	if scroll < 0 {
-		scroll = 0
-	}
-	if scroll >= len(body) {
-		scroll = max(0, len(body)-1)
-	}
-	contentLines := max(0, maxLines-1)
-	end := scroll + contentLines
-	if end > len(body) {
-		end = len(body)
-	}
-	win := append([]string{title}, body[scroll:end]...)
-	return strings.Join(win, "\n")
+// renderWorkspacePane renders the full workspace pane (all rows). Used by
+// direct call sites and tests; the interactive view goes through
+// renderWorkspacePaneViewport.
+func (m *Model) renderWorkspacePane(w int) string {
+	return m.renderWorkspacePaneViewport(w, 0, 0)
 }
 
-func (m *Model) renderWorkspacePane(w int) string {
+// renderWorkspacePaneViewport renders the workspace pane for the window
+// [scroll, scroll+contentLines). contentLines <= 0 renders every row.
+func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string {
 	th := m.appTheme()
 	title := th.Style("primary").Bold(true).Render("Workspaces")
 	if m.root == nil {
@@ -291,9 +275,20 @@ func (m *Model) renderWorkspacePane(w int) string {
 	if m.WorkspaceCursor < 0 {
 		m.WorkspaceCursor = 0
 	}
-	lines := make([]string, 0, len(ws)+1)
+	lo, hi := 0, len(ws)
+	if contentLines > 0 {
+		if scroll < 0 {
+			scroll = 0
+		}
+		lo = scroll
+		hi = scroll + contentLines - 1
+		if hi > len(ws) {
+			hi = len(ws)
+		}
+	}
+	lines := make([]string, 0, hi-lo+2)
 	lines = append(lines, title)
-	for i := range ws {
+	for i := lo; i < hi; i++ {
 		selected := i == m.WorkspaceCursor && m.focus == PaneWorkspace
 		marker := "  "
 		if selected {
@@ -315,7 +310,17 @@ func (m *Model) renderWorkspacePane(w int) string {
 	return strings.Join(lines, "\n")
 }
 
+// renderTodoPane renders the full todo pane (all rows). Used by direct call
+// sites and tests; the interactive view goes through renderTodoPaneViewport.
 func (m *Model) renderTodoPane(w int) string {
+	return m.renderTodoPaneViewport(w, 0, 0)
+}
+
+// renderTodoPaneViewport renders the todo pane for the window
+// [scroll, scroll+contentLines). contentLines <= 0 renders every row (title
+// pinned, all content). Column widths are budgeted from the FULL row set so
+// they stay stable while scrolling.
+func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 	th := m.appTheme()
 	title := th.Style("primary").Bold(true).Render("Todos")
 	if m.root == nil {
@@ -353,9 +358,23 @@ func (m *Model) renderTodoPane(w int) string {
 	}
 	widths := m.columnWidths(PaneTodo, budget)
 	cols := m.visibleColumns(PaneTodo, budget)
-	lines := make([]string, 0, len(todos)+1)
+
+	// Window bounds over the content rows (index 0 == first todo).
+	lo, hi := 0, len(todos)
+	if contentLines > 0 {
+		if scroll < 0 {
+			scroll = 0
+		}
+		lo = scroll
+		hi = scroll + contentLines - 1 // -1 for the pinned title
+		if hi > len(todos) {
+			hi = len(todos)
+		}
+	}
+
+	lines := make([]string, 0, hi-lo+2)
 	lines = append(lines, title)
-	for i := range todos {
+	for i := lo; i < hi; i++ {
 		selected := i == m.TodoCursor && m.focus == PaneTodo
 		marker := "  "
 		if selected {

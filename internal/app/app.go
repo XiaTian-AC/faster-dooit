@@ -34,6 +34,10 @@ type Model struct {
 	workspaceScroll int
 	todoScroll      int
 
+	// pendingResize debounces window resizes: during a drag the terminal
+	// reports many sizes in quick succession; we only apply the final one.
+	pendingResize *pendingResizeState
+
 	// expanded[id] = true if the node is expanded in its tree view.
 	expanded map[int64]bool
 
@@ -95,6 +99,11 @@ type Model struct {
 type clipboardEntry struct {
 	kind string // "workspace" or "todo"
 	id   int64
+}
+
+// pendingResizeState holds a debounced terminal-size change.
+type pendingResizeState struct {
+	w, h int
 }
 
 // New constructs the bubbletea model wired to the store and optional Lua

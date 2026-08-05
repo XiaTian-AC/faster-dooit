@@ -108,3 +108,15 @@ func BenchmarkRenderRow10k(b *testing.B) {
 		m.RenderRow(1, 0)
 	}
 }
+
+// BenchmarkRenderViewport10k measures one full View() render for a 30-row
+// viewport over 10k todos — the resize/drag hot path. Viewport rendering
+// must stay bounded regardless of list size.
+func BenchmarkRenderViewport10k(b *testing.B) {
+	m := newBenchApp(b, 10000)
+	m.width, m.height = 120, 30
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = m.View()
+	}
+}

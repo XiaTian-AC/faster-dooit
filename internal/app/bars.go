@@ -23,6 +23,14 @@ type tickMsg time.Time
 // cross-platform fallback.
 type resizeTickMsg struct{}
 
+// resizeDebounceMsg fires after the debounce window to apply the final
+// pending size (dragging reports many sizes; we only repaint on the last).
+type resizeDebounceMsg struct{}
+
+// resizeDebounce is the window in which consecutive WindowSizeMsgs are
+// collapsed into a single repaint. 80ms smooths a fast drag.
+const resizeDebounce = 80 * time.Millisecond
+
 // startBarTick schedules the 1s tick that drives clock bar widgets.
 func (m *Model) startBarTick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
