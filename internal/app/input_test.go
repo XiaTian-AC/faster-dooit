@@ -163,6 +163,60 @@ func TestUpdateRoutesEscapeFromInsert(t *testing.T) {
 	}
 }
 
+// TestSearchEnterKeepsModeAndFilter: pressing Enter in SEARCH applies the
+// filter but stays in SEARCH (the user can still see what was searched).
+func TestSearchEnterKeepsModeAndFilter(t *testing.T) {
+	m := newTestApp(t)
+	m.StartSearch()
+	m.input.SetValue("milk")
+	m.confirmMode()
+	if m.mode != ModeSearch {
+		t.Fatalf("Enter should keep SEARCH mode, got %v", m.mode)
+	}
+	if m.filter != "milk" {
+		t.Fatalf("filter = %q, want %q", m.filter, "milk")
+	}
+}
+
+// TestSearchEscapeClearsAndShowsAll: pressing Esc in SEARCH clears the filter
+// and returns to NORMAL so the full list is shown again.
+func TestSearchEscapeClearsAndShowsAll(t *testing.T) {
+	m := newTestApp(t)
+	m.StartSearch()
+	m.input.SetValue("milk")
+	m.filter = "milk"
+	m.handleModeKey(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.mode != ModeNormal {
+		t.Fatalf("Esc should exit SEARCH, got %v", m.mode)
+	}
+	if m.filter != "" {
+		t.Fatalf("filter should be cleared on Esc, got %q", m.filter)
+	}
+}
+
+// TestSearchAddExitsAndCreates: pressing 'a' while searching exits SEARCH
+// (clearing the filter) and runs the normal add-sibling flow (enters the
+// inline edit for the new item).
+func TestSearchAddExitsAndCreates(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.StartSearch()
+	m.input.SetValue("milk")
+	m.filter = "milk"
+
+	m.handleModeKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if m.mode == ModeSearch {
+		t.Fatalf("pressing a in SEARCH should exit search, mode = %v", m.mode)
+	}
+	if m.filter != "" {
+		t.Fatalf("filter should be cleared when exiting search via a, got %q", m.filter)
+	}
+	// The add flow should have started the inline edit (INSERT mode).
+	if m.mode != ModeInsert {
+		t.Fatalf("a should start inline edit (INSERT), got %v", m.mode)
+	}
+}
+
 // TestEditDueEmptyClears: confirming an empty due input removes the due date.
 func TestEditDueEmptyClears(t *testing.T) {
 	m := newTestApp(t)

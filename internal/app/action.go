@@ -718,13 +718,17 @@ func (m *Model) actionEditEffort(_ *Model) tea.Cmd      { return m.StartEdit("ef
 func (m *Model) actionStartSearch(_ *Model) tea.Cmd { return m.StartSearch() }
 func (m *Model) actionStartSort(_ *Model) tea.Cmd   { return m.StartSort() }
 
-// actionRedraw forces a manual re-render: repaint the current frame from the
-// latest state and re-poll the terminal size. Useful when a terminal fails to
-// report a resize (e.g. under some ConPTY setups). Available to Lua config as
-// api.redraw, bound to "/" by default.
+// actionRedraw forces a manual re-render: clears the screen so Bubble Tea's
+// renderer redraws every row from scratch (a diff would skip unchanged rows),
+// and re-polls the terminal size. Useful when a terminal fails to report a
+// resize or leaves stale pixels (e.g. under some ConPTY setups). Available to
+// Lua config as api.redraw, bound to "/" by default.
 func (m *Model) actionRedraw(_ *Model) tea.Cmd {
 	m.BumpVersion()
-	return m.pollTerminalSize()
+	return tea.Batch(
+		func() tea.Msg { return tea.ClearScreen() },
+		m.pollTerminalSize(),
+	)
 }
 
 func (m *Model) actionShowHelp(_ *Model) tea.Cmd {

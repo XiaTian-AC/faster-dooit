@@ -214,7 +214,8 @@ func TestLuaKeyBindingsChords(t *testing.T) {
 	}
 }
 
-// TestRedrawAction: the redraw action bumps the version and returns a command.
+// TestRedrawAction: the redraw action bumps the version and forces a full
+// repaint — it schedules a ClearScreen and a resize poll as a batch.
 func TestRedrawAction(t *testing.T) {
 	m := newTestApp(t)
 	v0 := m.version
@@ -223,7 +224,12 @@ func TestRedrawAction(t *testing.T) {
 		t.Fatal("redraw should bump the version")
 	}
 	if cmd == nil {
-		t.Fatal("redraw should return a command (resize poll)")
+		t.Fatal("redraw should return a command")
+	}
+	got := cmd()
+	_, isBatch := got.(tea.BatchMsg)
+	if !isBatch {
+		t.Fatalf("redraw should schedule a batch (ClearScreen + poll), got %T", got)
 	}
 }
 

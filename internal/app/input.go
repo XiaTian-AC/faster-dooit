@@ -198,7 +198,32 @@ func (m *Model) doDelete() tea.Cmd {
 // handleModeKey routes a KeyMsg through the active input overlay.
 func (m *Model) handleModeKey(msg tea.KeyMsg) tea.Cmd {
 	switch m.mode {
-	case ModeInsert, ModeSearch, ModeSort:
+	case ModeSearch:
+		// Special keys while searching: Esc clears and shows everything;
+		// a / A exit search and start the normal add flow (so a newly added
+		// item isn't hidden by the current filter).
+		if msg.Type == tea.KeyEsc {
+			m.exitSearch()
+			return nil
+		}
+		if len(msg.Runes) > 0 {
+			switch msg.Runes[0] {
+			case 'a':
+				m.exitSearch()
+				return m.actions["add_sibling"](m)
+			case 'A':
+				m.exitSearch()
+				return m.actions["add_child"](m)
+			}
+		}
+		if msg.Type == tea.KeyEnter {
+			return m.confirmMode()
+		}
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		m.BumpVersion()
+		return cmd
+	case ModeInsert, ModeSort:
 		switch msg.Type {
 		case tea.KeyEsc:
 			m.cancelMode()
@@ -228,14 +253,24 @@ func (m *Model) handleModeKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+// exitSearch leaves SEARCH, clears the filter (showing the full list), and
+// returns to NORMAL mode.
+func (m *Model) exitSearch() {
+	m.filter = ""
+	m.mode = ModeNormal
+	m.clearNotice()
+	m.BumpVersion()
+}
+
 // confirmMode handles Enter in each input-driven mode.
 func (m *Model) confirmMode() tea.Cmd {
 	switch m.mode {
 	case ModeInsert:
 		return m.ConfirmEdit()
 	case ModeSearch:
+		// Apply the filter but STAY in SEARCH so the user can still see what
+		// they searched; Esc clears and returns to the full list.
 		m.filter = m.input.Value()
-		m.mode = ModeNormal
 		m.clearNotice()
 		m.BumpVersion()
 		return nil
