@@ -85,9 +85,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.actions["start_sort"](m)
 		case tea.KeyEsc:
 			m.keys.escape()
-			// Esc also clears an active search filter (show the full list).
+			// Esc also clears an active search filter (show the full list),
+			// keeping the cursor on the same item by ID.
 			if m.filter != "" {
-				m.filter = ""
+				m.clearFilterKeepTodoCursor()
 				m.BumpVersion()
 			}
 			return m, nil

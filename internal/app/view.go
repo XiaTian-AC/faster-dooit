@@ -33,7 +33,6 @@ const (
 
 const (
 	layoutWStack = 100 // width >= this: dual pane
-	layoutHOk    = 24  // height >= this: no viewport scroll
 )
 
 func (m *Model) layoutMode() layoutMode {
@@ -248,13 +247,6 @@ func clampScroll(scroll, cursorLine, total, contentLines int) int {
 		scroll = maxScroll
 	}
 	return scroll
-}
-
-// renderWorkspacePane renders the full workspace pane (all rows). Used by
-// direct call sites and tests; the interactive view goes through
-// renderWorkspacePaneViewport.
-func (m *Model) renderWorkspacePane(w int) string {
-	return m.renderWorkspacePaneViewport(w, 0, 0)
 }
 
 // renderWorkspacePaneViewport renders the workspace pane for the window

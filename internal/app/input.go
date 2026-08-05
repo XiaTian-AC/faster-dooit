@@ -200,8 +200,9 @@ func (m *Model) handleModeKey(msg tea.KeyMsg) tea.Cmd {
 	switch m.mode {
 	case ModeSearch:
 		// Special keys while searching: Esc clears and shows everything;
-		// a / A exit search and start the normal add flow (so a newly added
-		// item isn't hidden by the current filter).
+		// a / A apply the typed filter (so the cursor lands on a real match)
+		// then start the normal add flow — the new item is added under the
+		// matching item and never hidden by the now-cleared filter.
 		if msg.Type == tea.KeyEsc {
 			m.exitSearch()
 			return nil
@@ -209,10 +210,10 @@ func (m *Model) handleModeKey(msg tea.KeyMsg) tea.Cmd {
 		if len(msg.Runes) > 0 {
 			switch msg.Runes[0] {
 			case 'a':
-				m.exitSearch()
+				m.confirmMode() // apply filter, locate cursor, back to NORMAL
 				return m.actions["add_sibling"](m)
 			case 'A':
-				m.exitSearch()
+				m.confirmMode() // apply filter, locate cursor, back to NORMAL
 				return m.actions["add_child"](m)
 			}
 		}
@@ -254,9 +255,9 @@ func (m *Model) handleModeKey(msg tea.KeyMsg) tea.Cmd {
 }
 
 // exitSearch leaves SEARCH, clears the filter (showing the full list), and
-// returns to NORMAL mode.
+// returns to NORMAL mode. The cursor keeps pointing at the same item (by ID).
 func (m *Model) exitSearch() {
-	m.filter = ""
+	m.clearFilterKeepTodoCursor()
 	m.mode = ModeNormal
 	m.clearNotice()
 	m.BumpVersion()

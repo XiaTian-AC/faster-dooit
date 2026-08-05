@@ -231,6 +231,49 @@ func TestNormalEscapeClearsFilter(t *testing.T) {
 	}
 }
 
+// TestEscPreservesCursorItem: after a filtered search lands the cursor on a
+// match, Esc must clear the filter while keeping the cursor on that SAME item
+// (by ID) in the full list — not jump to whatever index happens to match.
+func TestEscPreservesCursorItem(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	first := m.selectedTodo()
+	first.Description = "plain one"
+	if err := m.store.SaveTodo(first); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{"milk B", "plain two", "plain three"} {
+		td := &model.Todo{Description: d, Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID}
+		if err := m.store.SaveTodo(td); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Filter "milk" → cursor lands on "milk B".
+	m.StartSearch()
+	m.input.SetValue("milk")
+	m.confirmMode()
+	if m.mode != ModeNormal {
+		t.Fatalf("expected NORMAL, got %v", m.mode)
+	}
+	if sel := m.selectedTodo(); sel == nil || sel.Description != "milk B" {
+		t.Fatalf("cursor should be on milk B, got %+v", sel)
+	}
+	milkBID := m.selectedTodo().ID
+
+	// Esc clears the filter; cursor must still point at milk B.
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.filter != "" {
+		t.Fatalf("filter should be cleared, got %q", m.filter)
+	}
+	if sel := m.selectedTodo(); sel == nil || sel.ID != milkBID {
+		t.Fatalf("cursor should stay on milk B after Esc, got %+v", sel)
+	}
+}
+
 // TestStatusBarShowsActiveFilter: with a filter applied in NORMAL mode, the
 // status bar shows the search term so the user knows the list is filtered.
 func TestStatusBarShowsActiveFilter(t *testing.T) {
@@ -263,6 +306,56 @@ func TestSearchAddExitsAndCreates(t *testing.T) {
 	// The add flow should have started the inline edit (INSERT mode).
 	if m.mode != ModeInsert {
 		t.Fatalf("a should start inline edit (INSERT), got %v", m.mode)
+	}
+}
+
+// TestSearchModeAddChildUnderSelected: pressing A directly while in SEARCH
+// (without pressing Enter first) must still add a child under the matching
+// item — the search input is applied as a filter first so the cursor lands on
+// a real match before add_child runs.
+func TestSearchModeAddChildUnderSelected(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	first := m.selectedTodo()
+	first.Description = "plain one"
+	if err := m.store.SaveTodo(first); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{"milk B", "plain two"} {
+		td := &model.Todo{Description: d, Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID}
+		if err := m.store.SaveTodo(td); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Type "milk" into the search box, then press A (no Enter first).
+	m.StartSearch()
+	m.input.SetValue("milk")
+	m.handleModeKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
+
+	if m.mode == ModeSearch {
+		t.Fatalf("A should exit SEARCH, got %v", m.mode)
+	}
+	// The child must be under "milk B", not "plain one".
+	root, err := m.store.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := root.Children[0]
+	var milkB *model.Todo
+	for _, td := range ws.Todos {
+		if td.Description == "milk B" {
+			milkB = td
+		}
+	}
+	if milkB == nil {
+		t.Fatal("milk B not found")
+	}
+	if len(milkB.Todos) != 1 {
+		t.Fatalf("milk B should have exactly 1 child, got %d", len(milkB.Todos))
 	}
 }
 

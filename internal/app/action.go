@@ -48,12 +48,6 @@ func (m *Model) defaultActions() map[string]Action {
 	}
 }
 
-func (m *Model) placeholder(name string) Action {
-	return func(*Model) tea.Cmd {
-		return func() tea.Msg { return noticeMsg("TODO: " + name) }
-	}
-}
-
 // ----- cursor movement -----
 
 func (m *Model) actionMoveDown(_ *Model) tea.Cmd {
