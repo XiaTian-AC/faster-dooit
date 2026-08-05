@@ -58,35 +58,38 @@ jobs:
         id: ver
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Compute artifact SHA256
-        id: hash
-        run: |
-          URL="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/faster-dooit-windows-amd64.zip"
-          curl -fsSL "$URL" -o fdooit.zip
-          echo "sha256=$(sha256sum fdooit.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-
-      - name: Clone scoop bucket
-        env:
-          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
-        run: |
-          git clone "https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/XiaTian-AC/scoop-faster-dooit.git" bucket
-
       - name: Render manifest from template
         env:
           VERSION: ${{ steps.ver.outputs.version }}
-          SHA256: ${{ steps.hash.outputs.sha256 }}
         run: |
-          # 模板在源码仓库（已 checkout），复制进 bucket 再用 sed 填占位符
-          cp .scoop/faster-dooit.json.tmpl bucket/faster-dooit.json
-          sed -i "s/__VERSION__/${VERSION}/g; s/__SHA256__/${SHA256}/g" bucket/faster-dooit.json
+          sed "s/__VERSION__/${VERSION}/g; s/__SHA256__/0/g" \
+            .scoop/faster-dooit.json.tmpl > manifest.json
 
-      - name: Commit manifest
+      # Update the personal bucket via the GitHub Contents API. The token
+      # must be a PAT (or fine-grained token) with write access to the
+      # XiaTian-AC/scoop-faster-dooit repository — set it as a repo secret
+      # named SCOOP_BUCKET_TOKEN.
+      - name: Publish manifest to scoop bucket
         env:
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          cd bucket
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add faster-dooit.json
-          git commit -m "Release v${{ steps.ver.outputs.version }}" || true
-          git push origin HEAD:main
+          set -euo pipefail
+          # 从 checksums.txt 取 windows zip 的真实 sha256
+          SHA=$(curl -fsSL "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/checksums.txt" \
+            | awk '$2=="faster-dooit-windows-amd64.zip"{print $1}')
+          sed -i "s/__SHA256__/${SHA}/g" manifest.json
+          # 读现有文件 sha 用于更新（首次可能不存在，容错）
+          EXISTING_SHA=$(curl -fsSL \
+            -H "Authorization: token ${SCOOP_BUCKET_TOKEN}" \
+            "https://api.github.com/repos/XiaTian-AC/scoop-faster-dooit/contents/faster-dooit.json" \
+            | python3 -c "import sys,json;print(json.load(sys.stdin).get('sha',''))" 2>/dev/null || true)
+          CONTENT=$(python3 -c "import json;print(json.dumps(open('manifest.json').read()))")
+          PAYLOAD="{\"message\":\"Release v${VERSION}\",\"content\":\"$(base64 -w0 manifest.json)\""
+          if [ -n "$EXISTING_SHA" ]; then PAYLOAD="$PAYLOAD,\"sha\":\"$EXISTING_SHA\""; fi
+          PAYLOAD="$PAYLOAD,\"branch\":\"main\"}"
+          curl -fsSL -X PUT \
+            -H "Authorization: token ${SCOOP_BUCKET_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d "$PAYLOAD" \
+            "https://api.github.com/repos/XiaTian-AC/scoop-faster-dooit/contents/faster-dooit.json"
