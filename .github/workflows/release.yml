@@ -80,7 +80,8 @@ jobs:
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          sed "s/__VERSION__/${VERSION}/g; s/__SHA256__/0/g" \
+          # 只填版本，SHA 由下一步从 checksums 提取后填入
+          sed "s/__VERSION__/${VERSION}/g" \
             .scoop/faster-dooit.json.tmpl > manifest.json
 
       # Update the personal bucket via the GitHub Contents API. The token
@@ -97,7 +98,12 @@ jobs:
           # 从 checksums.txt 取 windows zip 的真实 sha256
           SHA=$(curl -fsSL "https://github.com/${{ github.repository }}/releases/download/${TAG}/checksums.txt" \
             | awk '$2=="faster-dooit-windows-amd64.zip"{print $1}')
+          if [ -z "$SHA" ]; then
+            echo "::error::Failed to extract SHA256 from checksums.txt for ${TAG}"
+            exit 1
+          fi
           sed -i "s/__SHA256__/${SHA}/g" manifest.json
+          grep -q "sha256:${SHA}" manifest.json || { echo "::error::SHA256 placeholder not substituted"; exit 1; }
           # 读现有文件 sha 用于更新（首次可能不存在，容错）
           EXISTING_SHA=$(curl -fsSL \
             -H "Authorization: token ${SCOOP_BUCKET_TOKEN}" \
