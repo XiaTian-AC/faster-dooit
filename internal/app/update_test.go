@@ -172,9 +172,9 @@ func TestTerminalSizeProbe(t *testing.T) {
 	}
 }
 
-// TestResizeRefreshesLayout: a WindowSizeMsg is debounced then applied on the
-// debounce tick, updating dimensions, bumping the version, and resetting
-// scroll offsets so a shrink from tall to short doesn't leave stale scroll.
+// TestResizeRefreshesLayout: a WindowSizeMsg immediately updates the stored
+// size (so status bar padding never uses stale width), while the version bump
+// / repaint and scroll reset are debounced and applied on the debounce tick.
 func TestResizeRefreshesLayout(t *testing.T) {
 	m := newTestApp(t)
 	m.SetFocus(PaneTodo)
@@ -182,25 +182,36 @@ func TestResizeRefreshesLayout(t *testing.T) {
 	m.todoScroll = 50 // stale scroll from a larger terminal
 	m.width, m.height = 150, 30
 
-	// First size arrives: recorded as pending, not applied yet.
+	// First size arrives: size updates immediately, version does not.
 	_, cmd := m.Update(tea.WindowSizeMsg{Width: 150, Height: 14})
 	if cmd == nil {
 		t.Fatal("resize should schedule a debounce tick")
 	}
-	if m.height == 14 {
-		t.Fatal("size should not apply before the debounce tick")
+	if m.height != 14 || m.width != 150 {
+		t.Fatalf("size should update immediately, got %dx%d", m.width, m.height)
+	}
+	v0 := m.version
+	if m.version != v0 {
+		t.Fatal("version should not bump before the debounce tick")
 	}
 
-	// A second size arrives during the window: overrides the pending one.
+	// A second size arrives during the window: size updates immediately.
 	_, _ = m.Update(tea.WindowSizeMsg{Width: 130, Height: 12})
-
-	// Debounce tick fires: applies the final size.
-	_, _ = m.Update(resizeDebounceMsg{})
 	if m.width != 130 || m.height != 12 {
-		t.Fatalf("debounced size not applied: %dx%d, want 130x12", m.width, m.height)
+		t.Fatalf("second size not applied immediately: %dx%d", m.width, m.height)
+	}
+
+	// Debounce tick fires: bumps the version, resets scroll, and returns a
+	// clear-screen command to wipe any partial-resize residue.
+	_, cmd2 := m.Update(resizeDebounceMsg{})
+	if m.version == v0 {
+		t.Fatal("debounce tick should bump the version")
 	}
 	if m.todoScroll != 0 || m.workspaceScroll != 0 {
 		t.Fatalf("scroll should reset on resize, got %d/%d", m.workspaceScroll, m.todoScroll)
+	}
+	if cmd2 == nil {
+		t.Fatal("debounce tick should return a clear-screen command")
 	}
 	// Render must clamp the stale scroll into range (no panic, no overflow).
 	v := m.View()
@@ -224,12 +235,15 @@ func TestResizeDebounceCollapsesBursts(t *testing.T) {
 		t.Fatalf("version should not bump during debounce, got %d -> %d", v0, m.version)
 	}
 	// One debounce tick applies the last size and repaints once.
-	_, _ = m.Update(resizeDebounceMsg{})
+	_, cmd := m.Update(resizeDebounceMsg{})
 	if m.width != 140 {
 		t.Fatalf("final size = %d, want 140", m.width)
 	}
 	if m.version == v0 {
 		t.Fatal("debounce tick should bump the version")
+	}
+	if cmd == nil {
+		t.Fatal("debounce tick should return a clear-screen command")
 	}
 }
 
