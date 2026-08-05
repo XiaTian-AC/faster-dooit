@@ -48,6 +48,12 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     steps:
+      # Checkout the SOURCE repo (contains .scoop/faster-dooit.json.tmpl).
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Compute release version
         id: ver
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
@@ -59,22 +65,20 @@ jobs:
           curl -fsSL "$URL" -o fdooit.zip
           echo "sha256=$(sha256sum fdooit.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout scoop bucket
+      - name: Clone scoop bucket
         env:
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
         run: |
           git clone "https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/XiaTian-AC/scoop-faster-dooit.git" bucket
-          cd bucket
 
       - name: Render manifest from template
         env:
           VERSION: ${{ steps.ver.outputs.version }}
           SHA256: ${{ steps.hash.outputs.sha256 }}
         run: |
-          # 模板在上层仓库，先复制进 bucket 再用 sed 填占位符
+          # 模板在源码仓库（已 checkout），复制进 bucket 再用 sed 填占位符
           cp .scoop/faster-dooit.json.tmpl bucket/faster-dooit.json
-          cd bucket
-          sed -i "s/__VERSION__/${VERSION}/g; s/__SHA256__/${SHA256}/g" faster-dooit.json
+          sed -i "s/__VERSION__/${VERSION}/g; s/__SHA256__/${SHA256}/g" bucket/faster-dooit.json
 
       - name: Commit manifest
         env:
