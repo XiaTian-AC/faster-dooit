@@ -262,16 +262,33 @@ func (m *Model) exitSearch() {
 	m.BumpVersion()
 }
 
+// moveCursorToFirstMatch puts the todo cursor on the first item matching the
+// active filter (or keeps it clamped if the filter matches nothing).
+func (m *Model) moveCursorToFirstMatch() {
+	if m.filter == "" {
+		return
+	}
+	todos := m.visibleTodos()
+	if len(todos) == 0 {
+		m.TodoCursor = 0
+		return
+	}
+	m.TodoCursor = 0
+}
+
 // confirmMode handles Enter in each input-driven mode.
 func (m *Model) confirmMode() tea.Cmd {
 	switch m.mode {
 	case ModeInsert:
 		return m.ConfirmEdit()
 	case ModeSearch:
-		// Apply the filter but STAY in SEARCH so the user can still see what
-		// they searched; Esc clears and returns to the full list.
+		// Apply the filter and return to NORMAL so the cursor can operate on
+		// the results. The active filter is shown in the status bar; Esc (in
+		// either SEARCH or NORMAL) clears it and shows the full list.
 		m.filter = m.input.Value()
+		m.mode = ModeNormal
 		m.clearNotice()
+		m.moveCursorToFirstMatch()
 		m.BumpVersion()
 		return nil
 	case ModeSort:

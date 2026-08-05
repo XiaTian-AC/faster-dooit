@@ -169,6 +169,8 @@ func indexOfWorkspaceByID(ws []*model.Workspace, id int64) int {
 // ----- CRUD: add / delete -----
 
 func (m *Model) actionAddSibling(_ *Model) tea.Cmd {
+	// Adding should always show the new item, so clear any search filter.
+	m.filter = ""
 	if m.focus == PaneWorkspace {
 		parent := m.selectedWorkspaceByCursor()
 		if parent == nil {
@@ -223,6 +225,8 @@ func (m *Model) addWorkspaceChild(parent *model.Workspace) tea.Cmd {
 }
 
 func (m *Model) actionAddChild(_ *Model) tea.Cmd {
+	// Adding should always show the new item, so clear any search filter.
+	m.filter = ""
 	if m.focus == PaneWorkspace {
 		ws := m.selectedWorkspaceByCursor()
 		if ws == nil {

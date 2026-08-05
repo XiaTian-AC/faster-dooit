@@ -1,10 +1,13 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/XiaTian-AC/faster-dooit/internal/model"
 )
 
 func TestModeTransitions(t *testing.T) {
@@ -163,18 +166,40 @@ func TestUpdateRoutesEscapeFromInsert(t *testing.T) {
 	}
 }
 
-// TestSearchEnterKeepsModeAndFilter: pressing Enter in SEARCH applies the
-// filter but stays in SEARCH (the user can still see what was searched).
-func TestSearchEnterKeepsModeAndFilter(t *testing.T) {
+// TestSearchEnterMovesCursorToList: pressing Enter applies the filter and
+// moves the cursor to the list so the user can operate on the results; the
+// filter stays active (shown in the status bar) until Esc.
+func TestSearchEnterMovesCursorToList(t *testing.T) {
 	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	// Two todos: only "Buy milk" matches "milk".
+	first := m.selectedTodo()
+	first.Description = "Buy milk"
+	if err := m.store.SaveTodo(first); err != nil {
+		t.Fatal(err)
+	}
+	other := &model.Todo{Description: "Write report", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID}
+	if err := m.store.SaveTodo(other); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+
 	m.StartSearch()
 	m.input.SetValue("milk")
 	m.confirmMode()
-	if m.mode != ModeSearch {
-		t.Fatalf("Enter should keep SEARCH mode, got %v", m.mode)
+
+	if m.mode != ModeNormal {
+		t.Fatalf("Enter should return to NORMAL (cursor usable), got %v", m.mode)
 	}
 	if m.filter != "milk" {
-		t.Fatalf("filter = %q, want %q", m.filter, "milk")
+		t.Fatalf("filter should stay active, got %q", m.filter)
+	}
+	// Cursor must land on the first matching item.
+	sel := m.selectedTodo()
+	if sel == nil || sel.Description != "Buy milk" {
+		t.Fatalf("cursor should be on the matching item, got %+v", sel)
 	}
 }
 
@@ -191,6 +216,30 @@ func TestSearchEscapeClearsAndShowsAll(t *testing.T) {
 	}
 	if m.filter != "" {
 		t.Fatalf("filter should be cleared on Esc, got %q", m.filter)
+	}
+}
+
+// TestNormalEscapeClearsFilter: after applying a search filter, Esc in NORMAL
+// mode clears it so the full list shows again.
+func TestNormalEscapeClearsFilter(t *testing.T) {
+	m := newTestApp(t)
+	m.filter = "milk"
+	m.mode = ModeNormal
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.filter != "" {
+		t.Fatalf("NORMAL Esc should clear the filter, got %q", m.filter)
+	}
+}
+
+// TestStatusBarShowsActiveFilter: with a filter applied in NORMAL mode, the
+// status bar shows the search term so the user knows the list is filtered.
+func TestStatusBarShowsActiveFilter(t *testing.T) {
+	m := newTestApp(t)
+	m.mode = ModeNormal
+	m.filter = "milk"
+	v := m.renderStatusBar()
+	if !strings.Contains(v, "milk") {
+		t.Fatalf("status bar should show the active filter, got %q", v)
 	}
 }
 
@@ -214,6 +263,23 @@ func TestSearchAddExitsAndCreates(t *testing.T) {
 	// The add flow should have started the inline edit (INSERT mode).
 	if m.mode != ModeInsert {
 		t.Fatalf("a should start inline edit (INSERT), got %v", m.mode)
+	}
+}
+
+// TestAddClearsFilterShowsNewItem: adding a new item (a/A) with a filter
+// active clears the filter so the freshly created item is visible.
+func TestAddClearsFilterShowsNewItem(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.filter = "milk"
+	m.mode = ModeNormal
+
+	m.actionAddSibling(m)
+	if m.filter != "" {
+		t.Fatalf("adding should clear the filter, got %q", m.filter)
+	}
+	if m.mode != ModeInsert {
+		t.Fatalf("add should start inline edit (INSERT), got %v", m.mode)
 	}
 }
 

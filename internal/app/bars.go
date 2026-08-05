@@ -102,7 +102,9 @@ func (m *Model) renderStatusBar() string {
 	case ModeSearch, ModeSort:
 		right = " " + m.input.View() + " "
 	default:
-		if m.notice != "" {
+		if m.filter != "" {
+			right = " search: " + m.filter + " "
+		} else if m.notice != "" {
 			right = " " + m.notice + " "
 		}
 	}
