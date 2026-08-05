@@ -1,0 +1,52 @@
+# .goreleaser.yaml — GoReleaser 配置
+# 文档: https://goreleaser.com
+#
+# 约定：二进制统一命名为 fdooit（命令名），跨平台打包。
+# 通过 git tag v0.1.0 触发 .github/workflows/release.yml。
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: fdooit
+    main: .
+    binary: fdooit
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: fdooit
+    formats: [zip, tar.gz]
+    name_template: >-
+      {{ .ProjectName }}-{{ .Os }}-{{ .Arch }}
+    # zip 用于 Windows（scoop/winget 都要 zip），tar.gz 用于其余平台
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
