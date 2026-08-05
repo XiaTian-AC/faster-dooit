@@ -90,6 +90,22 @@ func TestInsertStatusBarNoError(t *testing.T) {
 	}
 }
 
+// TestStatusBarShowsFilterAndNotice: a notice (e.g. recurrence due-advanced)
+// must appear alongside the active search filter — the two must not overwrite.
+func TestStatusBarShowsFilterAndNotice(t *testing.T) {
+	m := newTestApp(t)
+	m.mode = ModeNormal
+	m.filter = "milk"
+	m.notice = "recurring task: due advanced to 2027-07-14 15:25"
+	v := m.renderStatusBar()
+	if !strings.Contains(v, "milk") {
+		t.Fatalf("status bar should show filter, got %q", v)
+	}
+	if !strings.Contains(v, "recurring task") {
+		t.Fatalf("status bar should show the notice too, got %q", v)
+	}
+}
+
 // TestNoticeClearedOnConfirmExit: an error shown while editing must disappear
 // once the edit is confirmed successfully and the app returns to NORMAL.
 func TestNoticeClearedOnConfirmExit(t *testing.T) {

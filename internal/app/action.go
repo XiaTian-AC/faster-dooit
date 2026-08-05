@@ -168,9 +168,30 @@ func indexOfWorkspaceByID(ws []*model.Workspace, id int64) int {
 
 // ----- CRUD: add / delete -----
 
-func (m *Model) actionAddSibling(_ *Model) tea.Cmd {
-	// Adding should always show the new item, so clear any search filter.
+// clearFilterKeepTodoCursor clears the search filter while preserving which
+// todo the cursor points to. Clearing the filter changes visibleTodos() from
+// the filtered subset to the full list, so the cursor index would otherwise
+// jump to a different item; we re-locate by ID.
+func (m *Model) clearFilterKeepTodoCursor() {
+	if m.filter == "" {
+		return
+	}
+	var id int64
+	if t := m.selectedTodo(); t != nil {
+		id = t.ID
+	}
 	m.filter = ""
+	if id != 0 && m.focus == PaneTodo {
+		if idx := indexOfTodoByID(m.visibleTodos(), id); idx >= 0 {
+			m.TodoCursor = idx
+		}
+	}
+}
+
+func (m *Model) actionAddSibling(_ *Model) tea.Cmd {
+	// Adding should always show the new item, so clear any search filter
+	// (which would otherwise hide the newly created item).
+	m.clearFilterKeepTodoCursor()
 	if m.focus == PaneWorkspace {
 		parent := m.selectedWorkspaceByCursor()
 		if parent == nil {
@@ -226,7 +247,7 @@ func (m *Model) addWorkspaceChild(parent *model.Workspace) tea.Cmd {
 
 func (m *Model) actionAddChild(_ *Model) tea.Cmd {
 	// Adding should always show the new item, so clear any search filter.
-	m.filter = ""
+	m.clearFilterKeepTodoCursor()
 	if m.focus == PaneWorkspace {
 		ws := m.selectedWorkspaceByCursor()
 		if ws == nil {

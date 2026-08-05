@@ -102,11 +102,16 @@ func (m *Model) renderStatusBar() string {
 	case ModeSearch, ModeSort:
 		right = " " + m.input.View() + " "
 	default:
+		// Show both the active search filter and any notice (e.g. a
+		// recurrence due-advance) — they must not overwrite each other.
+		var parts []string
 		if m.filter != "" {
-			right = " search: " + m.filter + " "
-		} else if m.notice != "" {
-			right = " " + m.notice + " "
+			parts = append(parts, " search: "+m.filter+" ")
 		}
+		if m.notice != "" {
+			parts = append(parts, " "+m.notice+" ")
+		}
+		right = strings.Join(parts, "")
 	}
 	return th.Style("primary").Render(mode) + pad(max(0, m.width-len(mode)-len(right))) + th.Style("secondary").Render(right)
 }

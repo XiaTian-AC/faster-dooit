@@ -266,6 +266,68 @@ func TestSearchAddExitsAndCreates(t *testing.T) {
 	}
 }
 
+// TestSearchAddChildAddsUnderSelected: pressing A while searching must add a
+// child under the SELECTED (filtered) item — not under whatever the cursor
+// index happens to point to once the filter is cleared.
+func TestSearchAddChildAddsUnderSelected(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	// Three todos; the second one ("milk B") matches "milk" and is the one
+	// the cursor selects after filtering.
+	todos := []*model.Todo{
+		{Description: "plain one", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID},
+		{Description: "milk B", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID},
+		{Description: "plain two", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID},
+	}
+	for _, td := range todos {
+		if err := m.store.SaveTodo(td); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Filter "milk" → only "milk B" is visible; cursor lands on it.
+	m.StartSearch()
+	m.input.SetValue("milk")
+	m.confirmMode()
+	if m.mode != ModeNormal {
+		t.Fatalf("expected NORMAL after search confirm, got %v", m.mode)
+	}
+	sel := m.selectedTodo()
+	if sel == nil || sel.Description != "milk B" {
+		t.Fatalf("cursor should be on milk B, got %+v", sel)
+	}
+	selectedID := sel.ID
+
+	// Press A while the filter is active: adds a child under milk B.
+	// Go through Update so the NORMAL-mode keymap dispatches add_child.
+	m.Update(keyMsg('A'))
+	if m.mode == ModeSearch {
+		t.Fatalf("A should exit search, got %v", m.mode)
+	}
+	if m.filter != "" {
+		t.Fatalf("A should clear the filter, got %q", m.filter)
+	}
+
+	// The child must be under milk B, not a sibling elsewhere.
+	root, err := m.store.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := root.Children[0]
+	for _, td := range ws.Todos {
+		if td.ID == selectedID {
+			if len(td.Todos) != 1 {
+				t.Fatalf("milk B should have exactly 1 child, got %d", len(td.Todos))
+			}
+			return
+		}
+	}
+	t.Fatalf("selected milk B (%d) not found after reload", selectedID)
+}
+
 // TestAddClearsFilterShowsNewItem: adding a new item (a/A) with a filter
 // active clears the filter so the freshly created item is visible.
 func TestAddClearsFilterShowsNewItem(t *testing.T) {
