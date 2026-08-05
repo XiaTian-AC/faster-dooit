@@ -4,7 +4,7 @@ PackageVersion: 0.1.0
 InstallerType: zip
 NestedInstallerType: portable
 NestedInstallerFiles:
-  - RelativeFilePath: faster-dooit.exe
+  - RelativeFilePath: fdooit.exe
     PortableCommandAlias: fdooit
 Installers:
   - Architecture: x64

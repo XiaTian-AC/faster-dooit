@@ -1,19 +1,32 @@
 {
-  "version": "__VERSION__",
-  "description": "A vim-style TUI todo manager written in Go. Unaffiliated with the dooit project; AI-assisted, hobby project.",
-  "homepage": "https://github.com/XiaTian-AC/faster-dooit",
-  "license": "MIT",
-  "url": "https://github.com/XiaTian-AC/faster-dooit/releases/download/v__VERSION__/faster-dooit-windows-amd64.zip",
-  "hash": "sha256:__SHA256__",
-  "bin": [["faster-dooit.exe", "fdooit"]],
-  "checkver": {
-    "github": "https://github.com/XiaTian-AC/faster-dooit"
-  },
-  "autoupdate": {
-    "url": "https://github.com/XiaTian-AC/faster-dooit/releases/download/v$version/faster-dooit-windows-amd64.zip",
-    "hash": {
-      "url": "https://github.com/XiaTian-AC/faster-dooit/releases/download/v$version/checksums.txt",
-      "regex": "$sha256\\s+faster-dooit-windows-amd64.zip"
+    "version": "__VERSION__",
+    "description": "A vim-style TUI todo manager written in Go. Unaffiliated with the dooit project; AI-assisted, hobby project.",
+    "homepage": "https://github.com/XiaTian-AC/faster-dooit",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/XiaTian-AC/faster-dooit/releases/download/v__VERSION__/faster-dooit-windows-amd64.zip",
+            "hash": "sha256:__SHA256__",
+            "bin": [
+                [
+                    "fdooit.exe",
+                    "fdooit"
+                ]
+            ]
+        }
+    },
+    "checkver": {
+        "github": "https://github.com/XiaTian-AC/faster-dooit"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/XiaTian-AC/faster-dooit/releases/download/v$version/faster-dooit-windows-amd64.zip",
+                "hash": {
+                    "url": "https://github.com/XiaTian-AC/faster-dooit/releases/download/v$version/checksums.txt",
+                    "regex": "$sha256\\s+faster-dooit-windows-amd64.zip"
+                }
+            }
+        }
     }
-  }
 }
