@@ -47,10 +47,11 @@ func (m *Model) startResizeTick() tea.Cmd {
 	})
 }
 
-// pollTerminalSize checks the actual terminal size and returns a
-// tea.WindowSizeMsg if it changed, or nil to keep the current frame.
-// The size is probed via terminalSize(), which is platform-aware: on Windows
-// it opens CONOUT$ to get the real console handle even under ConPTY.
+// pollTerminalSize checks the actual terminal size and returns a command.
+// On a detected change it records the pending size and schedules a debounced
+// apply (one repaint); identical sizes just reschedule the poll. The poll
+// deliberately does NOT emit a WindowSizeMsg directly — that would force a
+// renderer repaint on every polled frame during a drag.
 func (m *Model) pollTerminalSize() tea.Cmd {
 	if w, h, ok := terminalSize(); ok {
 		return m.resizeCmdFromSize(w, h)
@@ -59,20 +60,21 @@ func (m *Model) pollTerminalSize() tea.Cmd {
 	return m.startResizeTick()
 }
 
-// resizeCmdFromSize builds the resize command for a newly-detected size:
-// a WindowSizeMsg when it differs from the model's current size, otherwise a
-// bare reschedule. Extracted for testing.
+// resizeCmdFromSize returns the command for a newly-detected size: a
+// debounced apply when it differs from the current size, otherwise a bare
+// reschedule. Extracted for testing.
 func (m *Model) resizeCmdFromSize(w, h int) tea.Cmd {
 	if w == m.width && h == m.height {
 		return m.startResizeTick()
 	}
+	m.pendingResize = &pendingResizeState{w: w, h: h}
 	return tea.Batch(
-		func() tea.Msg { return tea.WindowSizeMsg{Width: w, Height: h} },
+		tea.Tick(resizeDebounce, func(time.Time) tea.Msg {
+			return resizeDebounceMsg{}
+		}),
 		m.startResizeTick(),
 	)
-}
-
-// renderStatusBar returns the single-line status area: Lua bar widgets (or
+}// renderStatusBar returns the single-line status area: Lua bar widgets (or
 // the mode chip + notice fallback).
 func (m *Model) renderStatusBar() string {
 	th := m.appTheme()

@@ -1,8 +1,6 @@
 package app
 
 import (
-	"time"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -13,29 +11,36 @@ import (
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// Update the stored size immediately so renderers (status bar padding,
-		// layout mode) never use a stale width/height during a drag. The
-		// version bump that triggers a full repaint is debounced below so a
-		// fast drag only repaints once.
+		// Event-driven resize (Windows Terminal / coninput): apply directly.
+		// The renderer has already repainted; we just record the size, reset
+		// scroll, and bump the version so View() renders the new geometry.
+		// Cancel any in-flight poll debounce so it doesn't re-apply a stale size.
+		m.pendingResize = nil
 		m.width = msg.Width
 		m.height = msg.Height
-		m.pendingResize = &pendingResizeState{w: msg.Width, h: msg.Height}
-		return m, tea.Tick(resizeDebounce, func(time.Time) tea.Msg {
-			return resizeDebounceMsg{}
-		})
+		m.workspaceScroll = 0
+		m.todoScroll = 0
+		m.BumpVersion()
+		return m, nil
 
 	case resizeDebounceMsg:
-		// After the quiet window, force a full repaint of the final size and
-		// reset scroll offsets. ClearScreen guarantees the next frame is drawn
-		// from scratch, so stale rows (e.g. a duplicated status bar) left by a
-		// partial resize are wiped rather than diffed.
+		// Poll-driven resize (wezterm, no coninput events): apply the final
+		// debounced size now and emit ONE WindowSizeMsg so the renderer
+		// updates its width and repaints a single frame (the poll path never
+		// emits per-frame repaints).
 		if m.pendingResize != nil {
+			pr := m.pendingResize
 			m.pendingResize = nil
+			m.width = pr.w
+			m.height = pr.h
 			m.workspaceScroll = 0
 			m.todoScroll = 0
 			m.BumpVersion()
+			return m, func() tea.Msg {
+				return tea.WindowSizeMsg{Width: pr.w, Height: pr.h}
+			}
 		}
-		return m, func() tea.Msg { return tea.ClearScreen() }
+		return m, nil
 
 	case noticeMsg:
 		m.notice = string(msg)

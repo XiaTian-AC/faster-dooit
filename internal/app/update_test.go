@@ -61,44 +61,33 @@ func TestResizePollReschedules(t *testing.T) {
 	}
 }
 
-// TestResizeCmdDetectsChange: the size-change branch must emit a
-// WindowSizeMsg (driving scroll reset + repaint) only when the size differs.
+// TestResizeCmdDetectsChange: the size-change branch must record a pending
+// size and schedule a debounced apply (a tick command); same-size reschedules.
 func TestResizeCmdDetectsChange(t *testing.T) {
 	m := newTestApp(t)
 	m.width, m.height = 120, 30
 
-	// Same size → no WindowSizeMsg, just a reschedule.
-	msg := m.resizeCmdFromSize(120, 30)
-	if msg == nil {
+	// Same size → pending stays nil, just a reschedule command.
+	cmd := m.resizeCmdFromSize(120, 30)
+	if cmd == nil {
 		t.Fatal("same-size poll should still reschedule")
 	}
+	if m.pendingResize != nil {
+		t.Fatal("same-size poll must not set pending resize")
+	}
 
-	// Changed size → the command stream must carry a WindowSizeMsg.
-	cmd := m.resizeCmdFromSize(80, 14)
+	// Changed size → pending recorded, command returns a BatchMsg of ticks.
+	cmd = m.resizeCmdFromSize(80, 14)
 	if cmd == nil {
 		t.Fatal("changed-size poll should return a command")
 	}
-	got := cmd()
-	switch gm := got.(type) {
-	case tea.WindowSizeMsg:
-		// directly a window size
-	case tea.BatchMsg:
-		found := false
-		for _, sub := range gm {
-			if _, ok := sub().(tea.WindowSizeMsg); ok {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("BatchMsg should contain a WindowSizeMsg, got %#v", gm)
-		}
-	default:
-		t.Fatalf("changed-size poll should emit WindowSizeMsg or BatchMsg, got %T", got)
+	if m.pendingResize == nil || m.pendingResize.w != 80 || m.pendingResize.h != 14 {
+		t.Fatalf("pending resize not recorded: %+v", m.pendingResize)
 	}
 }
 
 // TestResizeCmdEachDirection: width-only, height-only, and both-changed
-// resizes must each produce a WindowSizeMsg; no-change must not.
+// resizes must each set a pending resize; no-change must not.
 func TestResizeCmdEachDirection(t *testing.T) {
 	cases := []struct {
 		name          string
@@ -119,20 +108,9 @@ func TestResizeCmdEachDirection(t *testing.T) {
 			if cmd == nil {
 				t.Fatalf("resizeCmdFromSize returned nil command")
 			}
-			got := cmd()
-			hasMsg := false
-			switch gm := got.(type) {
-			case tea.WindowSizeMsg:
-				hasMsg = true
-			case tea.BatchMsg:
-				for _, sub := range gm {
-					if _, ok := sub().(tea.WindowSizeMsg); ok {
-						hasMsg = true
-					}
-				}
-			}
-			if hasMsg != c.wantChangeMsg {
-				t.Fatalf("resize produced WindowSizeMsg = %v, want %v (got %T)", hasMsg, c.wantChangeMsg, got)
+			hasPending := m.pendingResize != nil
+			if hasPending != c.wantChangeMsg {
+				t.Fatalf("resize set pending = %v, want %v", hasPending, c.wantChangeMsg)
 			}
 		})
 	}
@@ -172,9 +150,10 @@ func TestTerminalSizeProbe(t *testing.T) {
 	}
 }
 
-// TestResizeRefreshesLayout: a WindowSizeMsg immediately updates the stored
-// size (so status bar padding never uses stale width), while the version bump
-// / repaint and scroll reset are debounced and applied on the debounce tick.
+// TestResizeRefreshesLayout: an event-driven WindowSizeMsg applies immediately
+// (size, scroll reset, version bump). The poll path (resizeCmdFromSize) only
+// records a pending size; the debounce tick applies it and emits one
+// WindowSizeMsg so the renderer repaints a single frame.
 func TestResizeRefreshesLayout(t *testing.T) {
 	m := newTestApp(t)
 	m.SetFocus(PaneTodo)
@@ -182,37 +161,39 @@ func TestResizeRefreshesLayout(t *testing.T) {
 	m.todoScroll = 50 // stale scroll from a larger terminal
 	m.width, m.height = 150, 30
 
-	// First size arrives: size updates immediately, version does not.
+	// Event-driven resize: applies immediately.
 	_, cmd := m.Update(tea.WindowSizeMsg{Width: 150, Height: 14})
-	if cmd == nil {
-		t.Fatal("resize should schedule a debounce tick")
+	if cmd != nil {
+		t.Fatalf("event-driven resize should not return a command, got %v", cmd)
 	}
 	if m.height != 14 || m.width != 150 {
-		t.Fatalf("size should update immediately, got %dx%d", m.width, m.height)
-	}
-	v0 := m.version
-	if m.version != v0 {
-		t.Fatal("version should not bump before the debounce tick")
-	}
-
-	// A second size arrives during the window: size updates immediately.
-	_, _ = m.Update(tea.WindowSizeMsg{Width: 130, Height: 12})
-	if m.width != 130 || m.height != 12 {
-		t.Fatalf("second size not applied immediately: %dx%d", m.width, m.height)
-	}
-
-	// Debounce tick fires: bumps the version, resets scroll, and returns a
-	// clear-screen command to wipe any partial-resize residue.
-	_, cmd2 := m.Update(resizeDebounceMsg{})
-	if m.version == v0 {
-		t.Fatal("debounce tick should bump the version")
+		t.Fatalf("size not applied: %dx%d", m.width, m.height)
 	}
 	if m.todoScroll != 0 || m.workspaceScroll != 0 {
 		t.Fatalf("scroll should reset on resize, got %d/%d", m.workspaceScroll, m.todoScroll)
 	}
-	if cmd2 == nil {
-		t.Fatal("debounce tick should return a clear-screen command")
+
+	// Poll path: records pending, does not apply yet.
+	m.todoScroll = 5
+	_ = m.resizeCmdFromSize(130, 12)
+	if m.width != 150 || m.height != 14 {
+		t.Fatalf("poll path must not apply before debounce: %dx%d", m.width, m.height)
 	}
+	if m.pendingResize == nil {
+		t.Fatal("poll path should record a pending size")
+	}
+	// Debounce tick applies it and emits one WindowSizeMsg.
+	_, cmd2 := m.Update(resizeDebounceMsg{})
+	if m.width != 130 || m.height != 12 {
+		t.Fatalf("debounce did not apply final size: %dx%d", m.width, m.height)
+	}
+	if m.todoScroll != 0 {
+		t.Fatalf("scroll should reset on debounce, got %d", m.todoScroll)
+	}
+	if cmd2 == nil {
+		t.Fatal("debounce tick should return a command (WindowSizeMsg)")
+	}
+
 	// Render must clamp the stale scroll into range (no panic, no overflow).
 	v := m.View()
 	for _, line := range splitLines(v) {
@@ -222,19 +203,23 @@ func TestResizeRefreshesLayout(t *testing.T) {
 	}
 }
 
-// TestResizeDebounceCollapsesBursts: many rapid sizes collapse to one repaint.
+// TestResizeDebounceCollapsesBursts: repeated poll detections collapse into a
+// single pending size; the version does not bump per frame.
 func TestResizeDebounceCollapsesBursts(t *testing.T) {
 	m := newTestApp(t)
 	m.width, m.height = 150, 30
 	v0 := m.version
 	for i := 1; i <= 10; i++ {
-		_, _ = m.Update(tea.WindowSizeMsg{Width: 150 - i, Height: 30})
+		_ = m.resizeCmdFromSize(150-i, 30)
 	}
-	// No repaint happened during the burst (version unchanged).
+	// No repaint happened during the burst (version unchanged, only pending set).
 	if m.version != v0 {
 		t.Fatalf("version should not bump during debounce, got %d -> %d", v0, m.version)
 	}
-	// One debounce tick applies the last size and repaints once.
+	if m.pendingResize == nil || m.pendingResize.w != 140 {
+		t.Fatalf("pending should hold the last size, got %+v", m.pendingResize)
+	}
+	// One debounce tick applies the final size and repaints once.
 	_, cmd := m.Update(resizeDebounceMsg{})
 	if m.width != 140 {
 		t.Fatalf("final size = %d, want 140", m.width)
@@ -243,7 +228,7 @@ func TestResizeDebounceCollapsesBursts(t *testing.T) {
 		t.Fatal("debounce tick should bump the version")
 	}
 	if cmd == nil {
-		t.Fatal("debounce tick should return a clear-screen command")
+		t.Fatal("debounce tick should return a command (WindowSizeMsg)")
 	}
 }
 
