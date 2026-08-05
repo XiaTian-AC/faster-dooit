@@ -14,6 +14,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.1.0). Leave empty to use the latest tag."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -36,6 +42,7 @@ jobs:
         run: go test ./...
 
       - name: Run GoReleaser
+        if: github.event_name == 'push'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -43,6 +50,9 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 手动 dispatch 时跳过 goreleaser（tag 已存在，Release 已生成），
+      # 但 still run tests 已在上一步执行，仅用于验证。
 
   update-scoop-bucket:
     needs: release
@@ -56,7 +66,15 @@ jobs:
 
       - name: Compute release version
         id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          # 从 tag（v0.1.0）或手动输入取版本号
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "tag=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Render manifest from template
         env:
@@ -73,10 +91,11 @@ jobs:
         env:
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
           VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
         run: |
           set -euo pipefail
           # 从 checksums.txt 取 windows zip 的真实 sha256
-          SHA=$(curl -fsSL "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/checksums.txt" \
+          SHA=$(curl -fsSL "https://github.com/${{ github.repository }}/releases/download/${TAG}/checksums.txt" \
             | awk '$2=="faster-dooit-windows-amd64.zip"{print $1}')
           sed -i "s/__SHA256__/${SHA}/g" manifest.json
           # 读现有文件 sha 用于更新（首次可能不存在，容错）
@@ -84,7 +103,6 @@ jobs:
             -H "Authorization: token ${SCOOP_BUCKET_TOKEN}" \
             "https://api.github.com/repos/XiaTian-AC/scoop-faster-dooit/contents/faster-dooit.json" \
             | python3 -c "import sys,json;print(json.load(sys.stdin).get('sha',''))" 2>/dev/null || true)
-          CONTENT=$(python3 -c "import json;print(json.dumps(open('manifest.json').read()))")
           PAYLOAD="{\"message\":\"Release v${VERSION}\",\"content\":\"$(base64 -w0 manifest.json)\""
           if [ -n "$EXISTING_SHA" ]; then PAYLOAD="$PAYLOAD,\"sha\":\"$EXISTING_SHA\""; fi
           PAYLOAD="$PAYLOAD,\"branch\":\"main\"}"
