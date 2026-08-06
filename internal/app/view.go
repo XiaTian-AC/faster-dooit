@@ -8,17 +8,37 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Color palette mirrors the default config.lua (Nord-ish). Task 6 wires
-// these to a real theme struct; this is a stable local palette so the
-// skeleton renders.
-var (
-	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#8FBCBB"))
-	focusedBorder = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#8FBCBB")).Padding(0, 1)
-	dimBorder     = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#3B4252")).Padding(0, 1)
-	cursorStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#A3BE8C"))
-	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#4C566A"))
-	statusStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#81A1C1"))
-)
+// Theme-driven styles. The palette is resolved from config.lua (preset +
+// overrides); there are no hardcoded UI colors.
+func (m *Model) titleStyle() lipgloss.Style {
+	th := m.appTheme()
+	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(th.Primary))
+}
+
+func (m *Model) focusedBorder() lipgloss.Style {
+	th := m.appTheme()
+	return lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color(th.BorderFocused)).Padding(0, 1)
+}
+
+func (m *Model) dimBorder() lipgloss.Style {
+	th := m.appTheme()
+	return lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color(th.BorderUnfocused)).Padding(0, 1)
+}
+
+func (m *Model) cursorStyle() lipgloss.Style {
+	th := m.appTheme()
+	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(th.Green))
+}
+
+func (m *Model) dimStyle() lipgloss.Style {
+	th := m.appTheme()
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(th.Dim))
+}
+
+func (m *Model) statusStyle() lipgloss.Style {
+	th := m.appTheme()
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(th.Secondary))
+}
 
 // layoutMode selects the responsive layout for the current terminal size.
 // Width and height are evaluated independently; either being too small
@@ -109,7 +129,30 @@ func (m *Model) View() string {
 			content = strings.Repeat("\n", top) + content
 		}
 	}
-	return content
+	return m.fillBackground(content)
+}
+
+// fillBackground applies the theme's Background color to the full rendered
+// output, padding every line to the terminal width so the background spans
+// the whole screen. Rows that already carry their own background (the
+// selected row's Selection highlight) keep it: the fill only prepends the
+// base background and re-applies it after plain resets.
+func (m *Model) fillBackground(content string) string {
+	th := m.appTheme()
+	bg := ansiBackground(th.Background)
+	if bg == "" || m.width <= 0 {
+		return content
+	}
+	reset := "\x1b[0m"
+	lines := strings.Split(content, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if pad := m.width - lipgloss.Width(line); pad > 0 {
+			line += strings.Repeat(" ", pad)
+		}
+		out = append(out, bg+strings.ReplaceAll(line, reset, reset+bg)+reset)
+	}
+	return strings.Join(out, "\n")
 }
 
 // renderDualPane lays the two panes side by side. Each pane box is rendered
@@ -133,13 +176,13 @@ func (m *Model) renderDualPane() string {
 	var combined string
 	if m.focus == PaneWorkspace {
 		combined = lipgloss.JoinHorizontal(lipgloss.Top,
-			focusedBorder.Width(paneW).Render(left),
-			dimBorder.Width(rightW).Render(right),
+			m.focusedBorder().Width(paneW).Render(left),
+			m.dimBorder().Width(rightW).Render(right),
 		)
 	} else {
 		combined = lipgloss.JoinHorizontal(lipgloss.Top,
-			dimBorder.Width(paneW).Render(left),
-			focusedBorder.Width(rightW).Render(right),
+			m.dimBorder().Width(paneW).Render(left),
+			m.focusedBorder().Width(rightW).Render(right),
 		)
 	}
 	return combined
@@ -165,11 +208,11 @@ func (m *Model) renderStacked() string {
 
 	var top, bottom string
 	if m.focus == PaneWorkspace {
-		top = focusedBorder.Width(boxW).Render(m.renderWorkspacePaneClipped(contentW, focusH))
-		bottom = dimBorder.Width(boxW).Render(m.renderTodoPaneClipped(contentW, otherH))
+		top = m.focusedBorder().Width(boxW).Render(m.renderWorkspacePaneClipped(contentW, focusH))
+		bottom = m.dimBorder().Width(boxW).Render(m.renderTodoPaneClipped(contentW, otherH))
 	} else {
-		top = dimBorder.Width(boxW).Render(m.renderWorkspacePaneClipped(contentW, otherH))
-		bottom = focusedBorder.Width(boxW).Render(m.renderTodoPaneClipped(contentW, focusH))
+		top = m.dimBorder().Width(boxW).Render(m.renderWorkspacePaneClipped(contentW, otherH))
+		bottom = m.focusedBorder().Width(boxW).Render(m.renderTodoPaneClipped(contentW, focusH))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, top, bottom)
 }
@@ -259,7 +302,7 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 	}
 	ws := m.VisibleWorkspaces()
 	if len(ws) == 0 {
-		return lipgloss.JoinVertical(lipgloss.Left, title, dimStyle.Render("(no workspaces)"))
+		return lipgloss.JoinVertical(lipgloss.Left, title, m.dimStyle().Render("(no workspaces)"))
 	}
 	if m.WorkspaceCursor >= len(ws) {
 		m.WorkspaceCursor = len(ws) - 1
@@ -326,7 +369,7 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 	}
 	todos := m.visibleTodos()
 	if len(todos) == 0 {
-		return lipgloss.JoinVertical(lipgloss.Left, title, dimStyle.Render("(no items to display)"))
+		return lipgloss.JoinVertical(lipgloss.Left, title, m.dimStyle().Render("(no items to display)"))
 	}
 	if m.TodoCursor >= len(todos) {
 		m.TodoCursor = len(todos) - 1
@@ -401,7 +444,7 @@ func (m *Model) renderSelectedRow(row string, w int) string {
 		row += strings.Repeat(" ", pad)
 	}
 	th := m.appTheme()
-	bg := ansiBackground(th.Background1)
+	bg := ansiBackground(th.Selection)
 	if bg == "" {
 		return row
 	}

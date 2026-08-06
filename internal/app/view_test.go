@@ -37,8 +37,18 @@ func TestViewVerticallyCenters(t *testing.T) {
 	m.height = 30
 	v := m.View()
 	// With 30 rows of room and ~10 content lines, content must be padded down
-	// from the top (leading newline(s)), not stuck at the first row.
-	if !strings.HasPrefix(v, "\n\n") {
+	// from the top (leading blank rows), not stuck at the first row. The blank
+	// rows carry the global background fill, so strip ANSI before checking.
+	lines := strings.Split(v, "\n")
+	blank := 0
+	for _, line := range lines {
+		if strings.TrimSpace(stripANSI(line)) == "" {
+			blank++
+		} else {
+			break
+		}
+	}
+	if blank < 2 {
 		t.Fatalf("content should be vertically centered (leading blank rows missing), got:\n%q", v)
 	}
 }
@@ -371,6 +381,42 @@ func TestInlineEditFullWidthInput(t *testing.T) {
 	for _, line := range strings.Split(v, "\n") {
 		if lw := lipgloss.Width(line); lw > 60 {
 			t.Errorf("inline edit row overflows pane by %d cols: %q", lw-60, line)
+		}
+	}
+}
+
+func TestSelectedRowUsesSelectionColor(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.TodoCursor = 0
+	th := m.appTheme()
+	sel := m.renderSelectedRow("> abc", 20)
+	if !strings.Contains(sel, "\x1b[48;2;") {
+		t.Fatalf("selected row should carry a background")
+	}
+	if !strings.Contains(sel, ansiBackground(th.Selection)) {
+		t.Fatalf("selected row should use Selection color %q, got %q", ansiBackground(th.Selection), sel)
+	}
+}
+
+func TestFillBackgroundPadsAndFills(t *testing.T) {
+	m := newTestApp(t)
+	m.width = 10
+	th := m.appTheme()
+	out := m.fillBackground("ab\ncd")
+	lines := strings.Split(out, "\n")
+	if len(lines) != 2 {
+		t.Fatalf("lines = %d, want 2", len(lines))
+	}
+	for i, line := range lines {
+		if !strings.HasPrefix(line, ansiBackground(th.Background)) {
+			t.Fatalf("line %d should start with the theme background", i)
+		}
+		if !strings.HasSuffix(line, "\x1b[0m") {
+			t.Fatalf("line %d should end with a reset", i)
+		}
+		if lipgloss.Width(line) != m.width {
+			t.Fatalf("line %d padded to %d cols, want %d", i, lipgloss.Width(line), m.width)
 		}
 	}
 }
