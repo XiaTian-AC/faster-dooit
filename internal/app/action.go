@@ -187,9 +187,15 @@ func (m *Model) actionAddSibling(_ *Model) tea.Cmd {
 	// (which would otherwise hide the newly created item).
 	m.clearFilterKeepTodoCursor()
 	if m.focus == PaneWorkspace {
-		parent := m.selectedWorkspaceByCursor()
-		if parent == nil {
+		cur := m.selectedWorkspaceByCursor()
+		if cur == nil {
 			return m.addWorkspaceChild(m.root)
+		}
+		// `a` adds a SIBLING: a workspace under the selected workspace's
+		// parent (root-level workspaces are children of the root).
+		parent := cur.Parent
+		if parent == nil {
+			parent = m.root
 		}
 		return m.addWorkspaceChild(parent)
 	}
@@ -726,13 +732,39 @@ func (m *Model) actionSwitchFocus(_ *Model) tea.Cmd {
 }
 
 func (m *Model) actionEnterEditDescription(_ *Model) tea.Cmd {
+	if m.focus == PaneTodo && m.selectedTodo() == nil {
+		return nil
+	}
+	if m.focus == PaneWorkspace && m.selectedWorkspaceByCursor() == nil {
+		return nil
+	}
 	return m.StartEdit("description")
 }
 
-func (m *Model) actionEditDescription(_ *Model) tea.Cmd { return m.StartEdit("description") }
-func (m *Model) actionEditDue(_ *Model) tea.Cmd         { return m.StartEdit("due") }
-func (m *Model) actionEditRecurrence(_ *Model) tea.Cmd  { return m.StartEdit("recurrence") }
-func (m *Model) actionEditEffort(_ *Model) tea.Cmd      { return m.StartEdit("effort") }
+func (m *Model) actionEditDescription(_ *Model) tea.Cmd { return m.actionEnterEditDescription(m) }
+
+// actionEditDue / actionEditRecurrence / actionEditEffort edit todo-only
+// fields. They are no-ops unless the todo pane is focused AND a todo is under
+// the cursor — on the workspace pane (or an empty todo pane) they must not
+// open an INSERT overlay.
+func (m *Model) actionEditDue(_ *Model) tea.Cmd {
+	if m.focus != PaneTodo || m.selectedTodo() == nil {
+		return nil
+	}
+	return m.StartEdit("due")
+}
+func (m *Model) actionEditRecurrence(_ *Model) tea.Cmd {
+	if m.focus != PaneTodo || m.selectedTodo() == nil {
+		return nil
+	}
+	return m.StartEdit("recurrence")
+}
+func (m *Model) actionEditEffort(_ *Model) tea.Cmd {
+	if m.focus != PaneTodo || m.selectedTodo() == nil {
+		return nil
+	}
+	return m.StartEdit("effort")
+}
 
 func (m *Model) actionStartSearch(_ *Model) tea.Cmd { return m.StartSearch() }
 func (m *Model) actionStartSort(_ *Model) tea.Cmd   { return m.StartSort() }

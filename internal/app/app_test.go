@@ -250,20 +250,23 @@ func TestRedrawAction(t *testing.T) {
 }
 
 // TestAction_AddSibling verifies that `a` on the workspace pane appends a
-// workspace child and persists it.
+// sibling workspace (same parent as the selected one) and persists it.
 func TestAction_AddSibling(t *testing.T) {
 	m := newTestApp(t)
 	work := m.root.Children[0]
 	if len(work.Children) != 0 {
 		t.Fatalf("expected Work to start with 0 children, got %d", len(work.Children))
 	}
-	m.actionAddSibling(m) // workspace pane focused → add as child of Work
+	m.actionAddSibling(m) // workspace pane focused → add sibling of Work
 	root, err := m.store.LoadAll()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(root.Children[0].Children) != 1 {
-		t.Fatalf("persisted Work.Children = %d, want 1", len(root.Children[0].Children))
+	if len(root.Children) != 2 {
+		t.Fatalf("persisted root.Children = %d, want 2 (Work + sibling)", len(root.Children))
+	}
+	if len(root.Children[0].Children) != 0 {
+		t.Fatalf("a sibling must not nest under Work, got %d children", len(root.Children[0].Children))
 	}
 }
 
@@ -290,5 +293,110 @@ func TestModel_Init_ReturnsCmd(t *testing.T) {
 	if cmd := m.Init(); cmd == nil {
 		// nil Cmd is acceptable; the contract is "returns tea.Cmd".
 		_ = tea.Cmd(nil)
+	}
+}
+
+// TestEditTodoOnlyFieldsDisabledOnWorkspacePane: d/r/e edit todo-only fields
+// (due/recurrence/effort). With the workspace pane focused they must be
+// no-ops — no INSERT overlay, no "editing due/recurrence/effort" bar.
+func TestEditTodoOnlyFieldsDisabledOnWorkspacePane(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneWorkspace)
+	m.actionEditDue(m)
+	if m.mode != ModeNormal {
+		t.Fatalf("d on workspace pane must be a no-op, mode=%v", m.mode)
+	}
+	m.actionEditRecurrence(m)
+	if m.mode != ModeNormal {
+		t.Fatalf("r on workspace pane must be a no-op, mode=%v", m.mode)
+	}
+	m.actionEditEffort(m)
+	if m.mode != ModeNormal {
+		t.Fatalf("e on workspace pane must be a no-op, mode=%v", m.mode)
+	}
+}
+
+// TestEditNoOpOnEmptyTodoPane: with the todo pane focused but no todo under
+// the cursor, enter/i/d/r/e must not enter INSERT (no "editing xxx" bar).
+func TestEditNoOpOnEmptyTodoPane(t *testing.T) {
+	m := newTestApp(t)
+	// Empty the current workspace's todos so selectedTodo() is nil.
+	ws := m.selectedWorkspace()
+	for _, td := range ws.Todos {
+		if err := m.store.DeleteTodo(td.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	m.SetFocus(PaneTodo)
+	m.TodoCursor = 0
+
+	if m.selectedTodo() != nil {
+		t.Fatal("setup: workspace should have no todos")
+	}
+
+	m.actionEnterEditDescription(m)
+	if m.mode != ModeNormal {
+		t.Fatalf("enter on empty todo pane must be a no-op, mode=%v", m.mode)
+	}
+	m.actionEditDescription(m)
+	if m.mode != ModeNormal {
+		t.Fatalf("i on empty todo pane must be a no-op, mode=%v", m.mode)
+	}
+	m.actionEditDue(m)
+	if m.mode != ModeNormal {
+		t.Fatalf("d on empty todo pane must be a no-op, mode=%v", m.mode)
+	}
+	m.actionEditRecurrence(m)
+	if m.mode != ModeNormal {
+		t.Fatalf("r on empty todo pane must be a no-op, mode=%v", m.mode)
+	}
+	m.actionEditEffort(m)
+	if m.mode != ModeNormal {
+		t.Fatalf("e on empty todo pane must be a no-op, mode=%v", m.mode)
+	}
+}
+
+// TestWorkspaceAddChildNests: `A` on the workspace pane must add a CHILD
+// workspace under the selected one (distinct from `a`'s sibling).
+func TestWorkspaceAddChildNests(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneWorkspace)
+	m.WorkspaceCursor = 0
+	m.actionAddChild(m)
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	root, err := m.store.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(root.Children[0].Children) != 1 {
+		t.Fatalf("A on workspace pane should nest under the selected workspace, got %d children", len(root.Children[0].Children))
+	}
+}
+
+// TestWorkspaceAddSiblingNested: `a` on a NESTED workspace must add a sibling
+// (child of the selected workspace's parent), not a child of the selected one.
+func TestWorkspaceAddSiblingNested(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneWorkspace)
+	m.WorkspaceCursor = 0
+	m.actionAddChild(m) // nest a child under Work
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	// Move the cursor down onto the nested child, then add a sibling.
+	m.actionMoveDown(m)
+	m.actionAddSibling(m)
+	root, err := m.store.LoadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	work := root.Children[0]
+	if len(work.Children) != 2 {
+		t.Fatalf("a on a nested workspace should add a sibling under Work, got %d children", len(work.Children))
 	}
 }
