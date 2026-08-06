@@ -16,40 +16,23 @@ import (
 // The 1s clock and bar refresh are decoupled from this cache: the clock
 // never bumps the version, so row caches are not invalidated every second.
 
-// defaultUrgencyColors is the built-in palette for urgency levels 1..5,
-// used when config.lua does not define api.vars.urgency_colors.
-var defaultUrgencyColors = []string{"#A3BE8C", "#EBCB8B", "#D08770", "#BF616A", "#FF5C5C"}
-
-// appTheme returns the active theme (from config.lua, or Nord defaults).
+// appTheme resolves the active theme: the named preset as a base with any
+// explicitly-configured color fields applied as overrides. Without config it
+// returns the nord preset.
 func (m *Model) appTheme() theme.Theme {
-	t := theme.Theme{
-		Primary:       "#8FBCBB",
-		Secondary:     "#81A1C1",
-		Background:    "#2E3440",
-		Background1:   "#3B4252",
-		Green:         "#A3BE8C",
-		Yellow:        "#EBCB8B",
-		Orange:        "#D08770",
-		Red:           "#BF616A",
-		UrgencyColors: defaultUrgencyColors,
+	if m.luaCfg == nil {
+		th, _ := theme.Resolve("", nil)
+		return th
 	}
-	if m.luaCfg != nil {
-		t = theme.Theme{
-			Primary:       m.luaCfg.Theme.Primary,
-			Secondary:     m.luaCfg.Theme.Secondary,
-			Background:    m.luaCfg.Theme.Background,
-			Background1:   m.luaCfg.Theme.Background1,
-			Green:         m.luaCfg.Theme.Green,
-			Yellow:        m.luaCfg.Theme.Yellow,
-			Orange:        m.luaCfg.Theme.Orange,
-			Red:           m.luaCfg.Theme.Red,
-			UrgencyColors: m.luaCfg.Theme.UrgencyColors,
-		}
-		if len(t.UrgencyColors) == 0 {
-			t.UrgencyColors = defaultUrgencyColors
-		}
+	th, err := theme.Resolve(m.luaCfg.Theme.Name, m.luaCfg.Theme.Explicit)
+	if err != nil {
+		// Unknown name is caught at config eval; fall back defensively.
+		th, _ = theme.Resolve("", nil)
 	}
-	return t
+	if len(m.luaCfg.Theme.UrgencyColors) > 0 {
+		th.UrgencyColors = m.luaCfg.Theme.UrgencyColors
+	}
+	return th
 }
 
 // ColumnLayout returns the column order for a pane from config.lua, falling

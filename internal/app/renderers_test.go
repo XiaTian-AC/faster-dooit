@@ -79,3 +79,38 @@ func TestDashboardFromConfig(t *testing.T) {
 		t.Fatal("no dashboard lines from config.lua")
 	}
 }
+
+func TestAppThemeResolvesPresetAndOverride(t *testing.T) {
+	m := newTestAppLua(t)
+	// newTestAppLua evaluates config.lua (theme.name defaults to nord).
+	th := m.appTheme()
+	if th.Primary == "" || th.Background == "" || th.Dim == "" || th.Selection == "" {
+		t.Fatalf("appTheme incomplete: %+v", th)
+	}
+}
+
+func TestAppThemeOverrideApplied(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt, err := lua.EvalFileWithCode(`
+api.vars.theme.name = "dracula"
+api.vars.theme.primary = "#123456"
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	m := New(st, rt)
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	th := m.appTheme()
+	if th.Primary != "#123456" {
+		t.Fatalf("override primary = %q, want #123456", th.Primary)
+	}
+	if th.Background == "" {
+		t.Fatal("dracula background should be populated")
+	}
+}
