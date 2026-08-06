@@ -4,7 +4,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/theme"
 )
@@ -137,9 +138,13 @@ func (m *Model) renderStatusBar() string {
 func (m *Model) renderLuaBar(th theme.Theme) string {
 	var parts []string
 	for _, w := range m.luaCfg.Bar {
-		text, err := m.luaCfg.CallFormatter(w.Fn, nil, nil, m.luaCfg.Theme)
+		text, style, err := m.luaCfg.CallFormatter(w.Fn, nil, nil, m.luaCfg.Theme)
 		if err == nil && text != "" {
-			parts = append(parts, text)
+			// The widget's style is a hex color; fall back to primary.
+			if style == "" {
+				style = th.Primary
+			}
+			parts = append(parts, lipgloss.NewStyle().Foreground(lipgloss.Color(style)).Render(text))
 		}
 	}
 	if len(parts) == 0 {

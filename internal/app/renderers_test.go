@@ -1,7 +1,11 @@
 package app
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/lua"
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
@@ -114,3 +118,29 @@ api.vars.theme.primary = "#123456"
 		t.Fatal("dracula background should be populated")
 	}
 }
+
+// TestDescriptionUsesThemeColor: the todo description column must be styled
+// with the active theme's primary color, not the terminal default foreground.
+// Without this, light themes (e.g. catppuccin_latte) render pale-on-pale and
+// the theme has no control over the main text.
+func TestDescriptionUsesThemeColor(t *testing.T) {
+	// Force 24-bit color output (no TTY in tests) so ANSI assertions work.
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "catppuccin_latte"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(st, rt)
+	todo := &model.Todo{Description: "buy milk", Pending: true}
+	cell := m.formatTodoColumn("description", todo)
+	// A 24-bit foreground ANSI sequence must style the description.
+	if !strings.Contains(cell, "\x1b[38;2;") {
+		t.Fatalf("description cell %q should be styled with a theme foreground color", cell)
+	}
+}
+

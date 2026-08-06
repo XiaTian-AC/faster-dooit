@@ -294,9 +294,14 @@ func (m *Model) formatTodoColumn(field string, t *model.Todo) string {
 		// Try in reverse registration order (matches formatter_store.py).
 		for i := len(fns) - 1; i >= 0; i-- {
 			val := fieldValue(field, t)
-			text, err := m.luaCfg.CallFormatter(fns[i], val, t, m.luaCfg.Theme)
+			text, style, err := m.luaCfg.CallFormatter(fns[i], val, t, m.luaCfg.Theme)
 			if err == nil && text != "" {
-				return th.Style("primary").Render(text)
+				// The formatter's style is a hex color (config.lua returns
+				// theme.<color>); fall back to primary when empty.
+				if style == "" {
+					style = th.Primary
+				}
+				return lipgloss.NewStyle().Foreground(lipgloss.Color(style)).Render(text)
 			}
 		}
 	}
@@ -313,12 +318,12 @@ func (m *Model) formatTodoColumn(field string, t *model.Todo) string {
 			return th.Style("yellow").Bold(true).Render("o")
 		}
 	case "description":
-		return t.Description
+		return th.Style("primary").Render(t.Description)
 	case "due":
 		if t.Due == nil {
 			return ""
 		}
-		return dueString(*t.Due)
+		return th.Style("secondary").Render(dueString(*t.Due))
 	case "urgency":
 		if t.Urgency == 0 {
 			return ""
@@ -329,12 +334,12 @@ func (m *Model) formatTodoColumn(field string, t *model.Todo) string {
 		if t.Effort == 0 {
 			return ""
 		}
-		return itoa(t.Effort)
+		return th.Style("secondary").Render(itoa(t.Effort))
 	case "recurrence":
 		if t.Recurrence == nil {
 			return ""
 		}
-		return durationString(*t.Recurrence)
+		return th.Style("secondary").Render(durationString(*t.Recurrence))
 	}
 	return ""
 }

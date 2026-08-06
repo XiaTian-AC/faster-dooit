@@ -48,12 +48,40 @@ func TestCallFormatterReturnsText(t *testing.T) {
 	if len(rt.Formatters.Todos.Status) == 0 {
 		t.Skip("no status formatter registered")
 	}
-	out, err := rt.CallFormatter(rt.Formatters.Todos.Status[0], "pending", nil, rt.Theme)
+	out, _, err := rt.CallFormatter(rt.Formatters.Todos.Status[0], "pending", nil, rt.Theme)
 	if err != nil {
 		t.Fatalf("CallFormatter err = %v", err)
 	}
 	if out == "" {
 		t.Error("CallFormatter returned empty text")
+	}
+}
+
+func TestCallFormatterReturnsStyle(t *testing.T) {
+	rt, err := EvalFileWithCode(`
+api.vars.theme.red = "#FF0000"
+api.formatter.todos.description.add(function(desc, model, theme)
+  return { text = desc, style = theme.red }
+end)
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fns := rt.Formatters.Todos.Description
+	if len(fns) == 0 {
+		t.Skip("no description formatter registered")
+	}
+	// config.lua formatters return theme.<color> which evaluates to a hex
+	// string (e.g. "#FF0000"); CallFormatter must pass that through as style.
+	text, style, err := rt.CallFormatter(fns[len(fns)-1], "buy milk", nil, rt.Theme)
+	if err != nil {
+		t.Fatalf("CallFormatter err = %v", err)
+	}
+	if text != "buy milk" {
+		t.Fatalf("text = %q, want buy milk", text)
+	}
+	if style != "#FF0000" {
+		t.Fatalf("style = %q, want #FF0000", style)
 	}
 }
 

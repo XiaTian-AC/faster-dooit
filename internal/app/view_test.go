@@ -27,7 +27,7 @@ func TestCursorAlignsWithIndent(t *testing.T) {
 	// indent (2 spaces for level 1).
 	m.TodoCursor = 1
 	v := m.renderTodoPane(80)
-	if !strings.Contains(v, "  > ") {
+	if !strings.Contains(stripANSI(v), "  > ") {
 		t.Fatalf("cursor should align with nested indent, got:\n%s", v)
 	}
 }
@@ -160,7 +160,7 @@ func TestScrollTopBoundary(t *testing.T) {
 		t.Fatalf("todoScroll = %d, want 0 at top", m.todoScroll)
 	}
 	// First todo ("a") must be visible after the title.
-	if !strings.Contains(v, "o a") {
+	if !strings.Contains(stripANSI(v), "o a") {
 		t.Fatalf("first todo should be visible at scroll 0:\n%s", v)
 	}
 }
@@ -376,7 +376,7 @@ func TestInlineEditFullWidthInput(t *testing.T) {
 	m.StartEdit("effort")
 	m.input.SetValue("1234567890")
 	v := m.renderTodoPane(60)
-	if !strings.Contains(v, "1234567890") {
+	if !strings.Contains(stripANSI(v), "1234567890") {
 		t.Fatalf("effort input should show full value, got:\n%s", v)
 	}
 	for _, line := range strings.Split(v, "\n") {

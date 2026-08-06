@@ -498,9 +498,10 @@ func themeNameValid(name string) bool {
 }
 
 // CallFormatter invokes a Lua formatter with (value, model, theme) and
-// returns the text. The formatter returns {text=..., style=...} or a bare
-// string; the style is discarded here (Task 6 maps it to lipgloss).
-func (rt *Runtime) CallFormatter(fn *lua.LFunction, value any, model any, theme Theme) (string, error) {
+// returns the text plus the style keyword/hex it requested. A formatter
+// returns {text=..., style=...} or a bare string; the style is a color
+// keyword or hex the renderer maps to lipgloss.
+func (rt *Runtime) CallFormatter(fn *lua.LFunction, value any, model any, theme Theme) (text string, style string, err error) {
 	L := rt.L
 	L.Push(fn)
 	L.Push(ToLua(L, value))
@@ -515,18 +516,19 @@ func (rt *Runtime) CallFormatter(fn *lua.LFunction, value any, model any, theme 
 	}
 	L.Push(themeTbl)
 
-	err := L.PCall(3, 1, nil)
+	err = L.PCall(3, 1, nil)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	ret := L.Get(-1)
 	L.Pop(1)
 
 	if tbl, ok := ret.(*lua.LTable); ok {
-		text := L.GetField(tbl, "text")
-		return lua.LVAsString(text), nil
+		text = lua.LVAsString(L.GetField(tbl, "text"))
+		style = lua.LVAsString(L.GetField(tbl, "style"))
+		return text, style, nil
 	}
-	return lua.LVAsString(ret), nil
+	return lua.LVAsString(ret), "", nil
 }
 
 var themeFields = []string{"primary", "secondary", "background", "background1", "green", "yellow", "orange", "red", "dim", "selection", "border_focused", "border_unfocused"}
