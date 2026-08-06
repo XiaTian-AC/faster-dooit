@@ -117,9 +117,9 @@ func defaultDBPath() string {
 }
 
 func defaultConfigPath() string {
-	dir, err := os.UserConfigDir()
+	home, err := os.UserHomeDir()
 	if err != nil {
-		dir = "."
+		home = "."
 	}
-	return filepath.Join(dir, "faster-dooit", "config.lua")
+	return filepath.Join(home, ".config", "faster-dooit", "config.lua")
 }

@@ -86,7 +86,7 @@ Natural-language dates, recurrence, search, sort, clipboard copy/paste, and a Lu
 ### Data & config
 
 - DB (created on first run): `%APPDATA%\faster-dooit\todo.db` (Windows) / `$XDG_CONFIG_HOME/faster-dooit/todo.db` (Linux/macOS)
-- Config: `config.lua` next to the DB. Override with `--db <path>` / `-c, --config <path>`
+- Config: `~/.config/faster-dooit/config.lua` (all platforms). Override with `--db <path>` / `-c, --config <path>`
 - An invalid config prints a `file:line` error and exits
 
 ### Keybindings (defaults)

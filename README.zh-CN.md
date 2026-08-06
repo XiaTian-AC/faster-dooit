@@ -86,7 +86,7 @@ go build -o fdooit.exe .
 ### 数据与配置
 
 - 数据库（首次运行创建）：`%APPDATA%\faster-dooit\todo.db`（Windows）/ `$XDG_CONFIG_HOME/faster-dooit/todo.db`（Linux/macOS）
-- 配置文件：与数据库同目录的 `config.lua`。可用 `--db <path>` / `-c, --config <path>` 覆盖
+- 配置文件：`~/.config/faster-dooit/config.lua`（全平台统一）。可用 `--db <path>` / `-c, --config <path>` 覆盖
 - 无效配置打印 `file:line` 错误并退出
 
 ### 键位（默认）
