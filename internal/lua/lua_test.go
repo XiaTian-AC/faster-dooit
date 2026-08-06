@@ -145,3 +145,49 @@ func TestKeysSetArray(t *testing.T) {
 		t.Errorf("array keys = %v, want both move_down", rt.Keys)
 	}
 }
+
+func TestThemeNameLoaded(t *testing.T) {
+	rt, err := EvalFileWithCode(`api.vars.theme.name = "dracula"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.Theme.Name != "dracula" {
+		t.Fatalf("name = %q, want dracula", rt.Theme.Name)
+	}
+}
+
+func TestThemeNameDefaultsNord(t *testing.T) {
+	rt, err := EvalFileWithCode(``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.Theme.Name != "nord" {
+		t.Fatalf("name = %q, want nord", rt.Theme.Name)
+	}
+}
+
+func TestThemeExplicitTracksOverrides(t *testing.T) {
+	rt, err := EvalFileWithCode(`
+api.vars.theme.name = "dracula"
+api.vars.theme.primary = "#FF0000"
+api.vars.theme.dim = "#555555"
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.Theme.Explicit["primary"] != "#FF0000" {
+		t.Fatalf("explicit primary = %q", rt.Theme.Explicit["primary"])
+	}
+	if rt.Theme.Explicit["dim"] != "#555555" {
+		t.Fatalf("explicit dim = %q", rt.Theme.Explicit["dim"])
+	}
+	if _, ok := rt.Theme.Explicit["secondary"]; ok {
+		t.Fatal("secondary was not explicitly assigned and must not appear")
+	}
+}
+
+func TestThemeUnknownNameErrors(t *testing.T) {
+	if _, err := EvalFileWithCode(`api.vars.theme.name = "bogus"`); err == nil {
+		t.Fatal("unknown theme name must error")
+	}
+}

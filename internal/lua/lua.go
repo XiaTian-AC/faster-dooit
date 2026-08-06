@@ -13,6 +13,8 @@ import (
 	"time"
 
 	lua "github.com/yuin/gopher-lua"
+
+	"github.com/XiaTian-AC/faster-dooit/internal/theme"
 )
 
 // Theme carries the color palette read from api.vars.theme.
@@ -26,9 +28,20 @@ type Theme struct {
 	Orange      string
 	Red         string
 
+	Dim             string
+	Selection       string
+	BorderFocused   string
+	BorderUnfocused string
+
 	// UrgencyColors maps urgency levels 1..5 to colors, read from
 	// api.vars.urgency_colors (index 0 = urgency 1).
 	UrgencyColors []string
+
+	// Name is the selected preset ("nord" by default). Explicit records the
+	// color fields the config actually assigned (field name → raw value), so
+	// the app can apply them as overrides on top of the preset.
+	Name     string
+	Explicit map[string]string
 }
 
 // Layouts holds the column order for each pane.
@@ -92,6 +105,7 @@ type Runtime struct {
 
 	themeTable *lua.LTable // reference to api.vars.theme for readTheme
 	varsTable  *lua.LTable // reference to api.vars for readTheme
+	explicit   map[string]string // recorded by the theme __newindex metatable
 }
 
 // actionNames are the string constants exposed on the api table (so
@@ -116,7 +130,10 @@ func EvalFile(path string) (*Runtime, error) {
 		L.Close()
 		return nil, err
 	}
-	rt.readTheme()
+	if err := rt.readTheme(); err != nil {
+		L.Close()
+		return nil, err
+	}
 	return rt, nil
 }
 
@@ -130,7 +147,10 @@ func EvalFileWithCode(code string) (*Runtime, error) {
 		L.Close()
 		return nil, err
 	}
-	rt.readTheme()
+	if err := rt.readTheme(); err != nil {
+		L.Close()
+		return nil, err
+	}
 	return rt, nil
 }
 
@@ -205,10 +225,14 @@ func (rt *Runtime) installAPI(L *lua.LState) {
 	// vars.theme + vars.urgency_colors
 	vars := L.NewTable()
 	theme := L.NewTable()
+	themeMT := L.NewTable()
+	L.SetField(themeMT, "__newindex", L.NewFunction(rt.themeNewIndex))
+	L.SetMetatable(theme, themeMT)
 	L.SetField(vars, "theme", theme)
 	L.SetField(api, "vars", vars)
 	rt.themeTable = theme
 	rt.varsTable = vars
+	rt.explicit = map[string]string{}
 
 	// Action name constants: api.move_down == "move_down", etc.
 	for _, name := range actionNames {
@@ -379,9 +403,23 @@ func (rt *Runtime) timer(L *lua.LState) int {
 	return 0
 }
 
+// themeNewIndex intercepts api.vars.theme.<field> = value. It records string
+// color assignments (so readTheme knows which fields were explicitly set) and
+// stores the value in the table. Non-string values are ignored for overrides.
+func (rt *Runtime) themeNewIndex(L *lua.LState) int {
+	key := L.ToString(2)
+	val := L.Get(3)
+	if s, ok := val.(lua.LString); ok {
+		rt.explicit[key] = string(s)
+	}
+	L.RawSet(rt.themeTable, lua.LString(key), val)
+	return 0
+}
+
 // readTheme copies color values out of api.vars.theme and
-// api.vars.urgency_colors after eval.
-func (rt *Runtime) readTheme() {
+// api.vars.urgency_colors after eval. name defaults to "nord"; an unknown
+// name is a config error.
+func (rt *Runtime) readTheme() error {
 	L := rt.L
 	get := func(k string) string {
 		if rt.themeTable == nil {
@@ -402,6 +440,15 @@ func (rt *Runtime) readTheme() {
 		Yellow:      get("yellow"),
 		Orange:      get("orange"),
 		Red:         get("red"),
+		Dim:         get("dim"),
+		Selection:   get("selection"),
+		BorderFocused:   get("border_focused"),
+		BorderUnfocused: get("border_unfocused"),
+		Name:        get("name"),
+		Explicit:    rt.explicit,
+	}
+	if rt.Theme.Name == "" {
+		rt.Theme.Name = "nord"
 	}
 
 	// api.vars.urgency_colors = { "#A3BE8C", ... } — a 1-based Lua array.
@@ -434,6 +481,20 @@ func (rt *Runtime) readTheme() {
 	if rt.MinHeight == 0 {
 		rt.MinHeight = 12
 	}
+
+	if !themeNameValid(rt.Theme.Name) {
+		return fmt.Errorf("unknown theme %q (available: %v)", rt.Theme.Name, theme.Names())
+	}
+	return nil
+}
+
+func themeNameValid(name string) bool {
+	for _, n := range theme.Names() {
+		if n == name {
+			return true
+		}
+	}
+	return false
 }
 
 // CallFormatter invokes a Lua formatter with (value, model, theme) and
@@ -468,7 +529,7 @@ func (rt *Runtime) CallFormatter(fn *lua.LFunction, value any, model any, theme 
 	return lua.LVAsString(ret), nil
 }
 
-var themeFields = []string{"primary", "secondary", "background", "background1", "green", "yellow", "orange", "red"}
+var themeFields = []string{"primary", "secondary", "background", "background1", "green", "yellow", "orange", "red", "dim", "selection", "border_focused", "border_unfocused"}
 
 func themeField(t Theme, f string) string {
 	switch f {
@@ -488,6 +549,14 @@ func themeField(t Theme, f string) string {
 		return t.Orange
 	case "red":
 		return t.Red
+	case "dim":
+		return t.Dim
+	case "selection":
+		return t.Selection
+	case "border_focused":
+		return t.BorderFocused
+	case "border_unfocused":
+		return t.BorderUnfocused
 	}
 	return ""
 }
