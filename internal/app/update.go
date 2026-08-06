@@ -52,6 +52,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// so row caches stay warm (decoupled from the 1s tick).
 		return m, m.startBarTick()
 
+	case redrawTickMsg:
+		// Force a full repaint every 200ms: bump the version so View() emits
+		// the complete screen (the renderer diffs it, so this only writes
+		// changed rows), then reschedule. Keeps the global background fill and
+		// any stale rows in sync.
+		m.BumpVersion()
+		return m, m.startRedrawTick()
+
 	case resizeTickMsg:
 		// Poll the terminal size (Windows has no SIGWINCH); only repaint on
 		// an actual change via a WindowSizeMsg.

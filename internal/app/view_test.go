@@ -6,6 +6,7 @@ import (
 
 	"github.com/XiaTian-AC/faster-dooit/internal/lua"
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
+	"github.com/XiaTian-AC/faster-dooit/internal/store"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -417,6 +418,66 @@ func TestFillBackgroundPadsAndFills(t *testing.T) {
 		}
 		if lipgloss.Width(line) != m.width {
 			t.Fatalf("line %d padded to %d cols, want %d", i, lipgloss.Width(line), m.width)
+		}
+	}
+}
+
+func TestFillBackgroundSpansTerminalHeight(t *testing.T) {
+	m := newTestApp(t)
+	m.width, m.height = 10, 5
+	th := m.appTheme()
+	out := m.fillBackground("ab\ncd")
+	lines := strings.Split(out, "\n")
+	if len(lines) != 5 {
+		t.Fatalf("background should span the terminal height, got %d lines (want 5): %q", len(lines), out)
+	}
+	for i, line := range lines {
+		if !strings.HasPrefix(line, ansiBackground(th.Background)) {
+			t.Fatalf("line %d should carry the background fill", i)
+		}
+		if lipgloss.Width(line) != m.width {
+			t.Fatalf("line %d width = %d, want %d", i, lipgloss.Width(line), m.width)
+		}
+	}
+}
+
+func TestFillBackgroundTransparentFromConfig(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt, err := lua.EvalFileWithCode(`api.vars.theme.background = "transparent"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	m := New(st, rt)
+	m.width, m.height = 10, 5
+	if th := m.appTheme(); th.Background != "transparent" {
+		t.Fatalf("background = %q, want transparent", th.Background)
+	}
+	out := m.fillBackground("ab\ncd")
+	if strings.Contains(out, "\x1b[48;2;") {
+		t.Fatalf("transparent background must not emit a fill: %q", out)
+	}
+	if out != "ab\ncd" {
+		t.Fatalf("transparent background should return content unchanged, got %q", out)
+	}
+}
+
+func TestViewOutputSpansTerminalHeight(t *testing.T) {
+	m := newTestApp(t)
+	m.width, m.height = 80, 24
+	v := m.View()
+	lines := strings.Split(v, "\n")
+	if len(lines) != m.height {
+		t.Fatalf("View output has %d lines, want terminal height %d", len(lines), m.height)
+	}
+	// Every line must carry the global background fill.
+	th := m.appTheme()
+	for i, line := range lines {
+		if !strings.HasPrefix(line, ansiBackground(th.Background)) {
+			t.Fatalf("line %d missing background fill: %q", i, line)
 		}
 	}
 }

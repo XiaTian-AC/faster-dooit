@@ -27,14 +27,31 @@ type resizeTickMsg struct{}
 // pending size (dragging reports many sizes; we only repaint on the last).
 type resizeDebounceMsg struct{}
 
+// redrawTickMsg fires every 200ms to force a full repaint. Experimental:
+// cheap (View() is diffed by the renderer) and keeps the terminal in sync on
+// terminals that drop or miss repaints.
+type redrawTickMsg struct{}
+
 // resizeDebounce is the window in which consecutive WindowSizeMsgs are
 // collapsed into a single repaint. 80ms smooths a fast drag.
 const resizeDebounce = 80 * time.Millisecond
+
+// redrawInterval is how often the UI forces a full repaint.
+const redrawInterval = 200 * time.Millisecond
 
 // startBarTick schedules the 1s tick that drives clock bar widgets.
 func (m *Model) startBarTick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
+	})
+}
+
+// startRedrawTick schedules the periodic forced repaint. It keeps the whole
+// screen (including the global background fill) in sync even when the
+// renderer's diff skips unchanged rows.
+func (m *Model) startRedrawTick() tea.Cmd {
+	return tea.Tick(redrawInterval, func(time.Time) tea.Msg {
+		return redrawTickMsg{}
 	})
 }
 

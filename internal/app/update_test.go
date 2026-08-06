@@ -61,6 +61,20 @@ func TestResizePollReschedules(t *testing.T) {
 	}
 }
 
+// TestRedrawTickReschedules: a redrawTickMsg must bump the version (forcing a
+// full repaint) and reschedule itself so the UI redraws every 200ms.
+func TestRedrawTickReschedules(t *testing.T) {
+	m := newTestApp(t)
+	v0 := m.version
+	_, cmd := m.Update(redrawTickMsg{})
+	if m.version == v0 {
+		t.Fatal("redrawTickMsg should bump the version")
+	}
+	if cmd == nil {
+		t.Fatal("redrawTickMsg should reschedule itself")
+	}
+}
+
 // TestResizeCmdDetectsChange: the size-change branch must record a pending
 // size and schedule a debounced apply (a tick command); same-size reschedules.
 func TestResizeCmdDetectsChange(t *testing.T) {

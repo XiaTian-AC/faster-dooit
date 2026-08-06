@@ -133,6 +133,9 @@ api.vars.theme.primary = "#FF79C6"
 加 `dim`、`selection`、`border_focused`、`border_unfocused`、
 `urgency_colors`。未知主题名会报错退出。
 
+设置 `api.vars.theme.background = "transparent"` 可保留终端自身背景，
+不进行全屏填充。
+
 **主题示例：**
 
 ```lua

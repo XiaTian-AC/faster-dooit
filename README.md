@@ -134,6 +134,9 @@ Built-in themes: `nord`, `catppuccin_mocha`, `catppuccin_latte`, `dracula`,
 base colors plus `dim`, `selection`, `border_focused`, `border_unfocused`,
 and `urgency_colors`. An unknown theme name is a config error.
 
+Set `api.vars.theme.background = "transparent"` to leave the terminal's own
+background visible instead of a full-screen fill.
+
 **Theme example:**
 
 ```lua

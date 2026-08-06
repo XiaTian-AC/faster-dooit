@@ -25,6 +25,10 @@ api.vars.theme.name = "nord"
 -- api.vars.theme.border_focused = "#8FBCBB"
 -- api.vars.theme.border_unfocused = "#4C566A"
 
+-- Transparent background: set background to "transparent" to leave the
+-- terminal's own background visible (no full-screen fill).
+-- api.vars.theme.background = "transparent"
+
 -- Urgency colors for levels 1..5 (index 1 = urgency 1). Customize freely.
 api.vars.urgency_colors = { "#A3BE8C", "#EBCB8B", "#D08770", "#BF616A", "#FF5C5C" }
 

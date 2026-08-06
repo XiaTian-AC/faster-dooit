@@ -133,10 +133,12 @@ func (m *Model) View() string {
 }
 
 // fillBackground applies the theme's Background color to the full rendered
-// output, padding every line to the terminal width so the background spans
-// the whole screen. Rows that already carry their own background (the
-// selected row's Selection highlight) keep it: the fill only prepends the
-// base background and re-applies it after plain resets.
+// output, padding every line to the terminal width and extending the output
+// to the terminal height so the background spans the whole screen. Rows that
+// already carry their own background (the selected row's Selection highlight)
+// keep it: the fill only prepends the base background and re-applies it after
+// plain resets. A transparent Background (or any non-hex value) skips the
+// fill entirely, leaving the terminal's own background.
 func (m *Model) fillBackground(content string) string {
 	th := m.appTheme()
 	bg := ansiBackground(th.Background)
@@ -145,6 +147,11 @@ func (m *Model) fillBackground(content string) string {
 	}
 	reset := "\x1b[0m"
 	lines := strings.Split(content, "\n")
+	if m.height > 0 {
+		for len(lines) < m.height {
+			lines = append(lines, "")
+		}
+	}
 	out := make([]string, 0, len(lines))
 	for _, line := range lines {
 		if pad := m.width - lipgloss.Width(line); pad > 0 {

@@ -127,9 +127,10 @@ func New(st *store.Store, luaCfg *lua.Runtime) *Model {
 }
 
 // Init implements tea.Model. Starts the 1s bar tick (drives the clock
-// widget; decoupled from row caching) and the resize poll.
+// widget; decoupled from row caching), the resize poll, and the 200ms
+// forced redraw tick.
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.startBarTick(), m.startResizeTick())
+	return tea.Batch(m.startBarTick(), m.startResizeTick(), m.startRedrawTick())
 }
 
 // RefreshFromStore reloads the in-memory tree from SQLite. Called on init
