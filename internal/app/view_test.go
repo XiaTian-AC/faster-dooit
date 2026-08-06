@@ -593,10 +593,10 @@ func TestAppendScrollbarPadsToEdge(t *testing.T) {
 	if len(ss) != 11 || len(ls) != 11 {
 		t.Fatalf("rows should be 11 chars wide: short=%d long=%d", len(ss), len(ls))
 	}
-	if ss[len(ss)-1] != '│' && ss[len(ss)-1] != '█' {
+	if ss[len(ss)-1] != '▌' && ss[len(ss)-1] != '█' {
 		t.Fatalf("short row should end with a scrollbar glyph, got %q", ss)
 	}
-	if ls[len(ls)-1] != '│' && ls[len(ls)-1] != '█' {
+	if ls[len(ls)-1] != '▌' && ls[len(ls)-1] != '█' {
 		t.Fatalf("long row should end with a scrollbar glyph, got %q", ls)
 	}
 }
@@ -655,5 +655,34 @@ func TestScrollbarThumbVisibleAtEnds(t *testing.T) {
 	v = m.View()
 	if !strings.Contains(v, thumb) {
 		t.Fatalf("first item selected must keep the thumb visible, got:\n%s", v)
+	}
+}
+
+// TestScrollbarTrackHalfBlock: the track uses a dim half-block glyph (▌) and
+// the thumb a primary solid block (█), giving a light-track/dark-thumb look.
+func TestScrollbarTrackHalfBlock(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "nord"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(st, rt)
+	col := m.scrollbarColumn(3, 1) // 3 content rows, thumb on content row 1
+	rows := strings.Split(col, "\n")
+	if len(rows) != 4 {
+		t.Fatalf("expected title + 3 content rows, got %d", len(rows))
+	}
+	// Title and non-thumb rows are dim half-blocks; the thumb row (index 2) is
+	// a primary solid block.
+	if !strings.Contains(stripANSI(rows[0]), "▌") {
+		t.Fatalf("track row should use half-block glyph, got %q", stripANSI(rows[0]))
+	}
+	if !strings.Contains(stripANSI(rows[2]), "█") {
+		t.Fatalf("thumb row should use solid block, got %q", stripANSI(rows[2]))
 	}
 }

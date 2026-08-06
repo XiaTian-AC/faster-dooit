@@ -573,9 +573,10 @@ func scrollbarThumb(total, contentRows, scroll int) (int, bool) {
 }
 
 // scrollbarColumn renders a 1-column vertical scrollbar spanning the whole
-// pane (title row + contentRows rows): a primary-colored thumb on its row,
-// dim-colored track elsewhere. contentThumb is the content row the thumb
-// sits on; it maps to pane row contentThumb+1 (row 0 is the pinned title).
+// pane (title row + contentRows rows): a primary-colored solid thumb (█) on
+// its row, dim-colored half-block (▌) track elsewhere. contentThumb is the
+// content row the thumb sits on; it maps to pane row contentThumb+1 (row 0
+// is the pinned title).
 func (m *Model) scrollbarColumn(contentRows, contentThumb int) string {
 	th := m.appTheme()
 	thumbStyle := th.Style("primary")
@@ -585,7 +586,7 @@ func (m *Model) scrollbarColumn(contentRows, contentThumb int) string {
 		if i == contentThumb+1 {
 			rows = append(rows, thumbStyle.Render("█"))
 		} else {
-			rows = append(rows, trackStyle.Render("│"))
+			rows = append(rows, trackStyle.Render("▌"))
 		}
 	}
 	return strings.Join(rows, "\n")
