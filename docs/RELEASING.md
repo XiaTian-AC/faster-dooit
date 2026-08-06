@@ -55,7 +55,7 @@ wingetcreate update --urls "https://github.com/XiaTian-AC/faster-dooit/releases/
 | 渠道 | 状态 | 说明 |
 |---|---|---|
 | GitHub Release v0.1.0 | ✅ | 跨平台 zip/tar.gz + checksums |
-| 个人 bucket | ✅ | `scoop bucket add faster-dooit https://github.com/XiaTian-AC-bucket`，CI 自动更新 manifest |
+| 个人 bucket | ✅ | `scoop bucket add faster-dooit https://github.com/XiaTian-AC/XiaTian-AC-bucket`，CI 自动更新 manifest |
 | Scoop 官方 Extras | ⏳ 待定 | PR #18463；技术检查已过，但卡 **100 star/50 fork** 社区门槛，可能被关或特批 |
 | Winget | ⏳ 审核中 | PR #412633；wingetbot 流水线验证中，微软 reviewer 审核 |
 

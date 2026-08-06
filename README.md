@@ -7,7 +7,7 @@
 Your todo app takes two seconds to open and stutters on every keystroke. **faster-dooit** is a vim-style terminal todo manager that cold-loads 10,000 todos in **~34 ms** and never polls the database — so it feels instant, even with your whole life in it.
 
 ```
-scoop bucket add faster-dooit https://github.com/XiaTian-AC-bucket
+scoop bucket add faster-dooit https://github.com/XiaTian-AC/XiaTian-AC-bucket
 scoop install faster-dooit
 fdooit
 ```
@@ -47,7 +47,7 @@ fdooit
 
 ```powershell
 # One-time: add my personal bucket
-scoop bucket add faster-dooit https://github.com/XiaTian-AC-bucket
+scoop bucket add faster-dooit https://github.com/XiaTian-AC/XiaTian-AC-bucket
 scoop install faster-dooit
 ```
 
