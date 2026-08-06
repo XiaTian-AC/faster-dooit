@@ -9,7 +9,7 @@
 | LICENSE | `LICENSE` | MIT，scoop/winget 审核必须 |
 | 版本 tag | `v0.1.0` 等 | 触发 CI 构建 + Release |
 | CI 工作流 | `.github/workflows/release.yml` | 跨平台编译 → 打 zip → 上传 Release → 更新 scoop manifest |
-| 个人 scoop bucket | `XiaTian-AC/scoop-faster-dooit` | `scoop install` 用，manifest 由 CI 自动更新 |
+| 统一 scoop bucket | `XiaTian-AC-bucket` | 所有项目共用的个人 bucket，`scoop install` 用，manifest 由各项目 CI 自动更新 |
 | Winget manifest | `.winget/manifests/` | 已归档；用 `wingetcreate submit` 提交 |
 | Scoop 官方 | ScoopInstaller/Extras | 已提交 PR |
 
@@ -38,11 +38,11 @@ wingetcreate update --urls "https://github.com/XiaTian-AC/faster-dooit/releases/
 
 ## 必备 Secret
 
-`SCOOP_BUCKET_TOKEN`（仓库 secret）——用于 CI 更新个人 bucket 的 manifest。
-这是一个有 `XiaTian-AC/scoop-faster-dooit` 仓库写权限的 **Fine-grained PAT**：
+`SCOOP_BUCKET_TOKEN`（仓库 secret）——用于 CI 更新统一 bucket 的 manifest。
+这是一个有 `XiaTian-AC-bucket` 仓库写权限的 **Fine-grained PAT**：
 
 1. GitHub → Settings → Developer settings → Fine-grained tokens → Generate
-2. 勾选 `XiaTian-AC/scoop-faster-dooit`，权限：Contents → Read and write
+2. 勾选 `XiaTian-AC-bucket`，权限：Contents → Read and write
 3. 设为仓库 secret：
    ```powershell
    gh secret set SCOOP_BUCKET_TOKEN --repo XiaTian-AC/faster-dooit
@@ -55,7 +55,7 @@ wingetcreate update --urls "https://github.com/XiaTian-AC/faster-dooit/releases/
 | 渠道 | 状态 | 说明 |
 |---|---|---|
 | GitHub Release v0.1.0 | ✅ | 跨平台 zip/tar.gz + checksums |
-| 个人 bucket | ✅ | `scoop bucket add faster-dooit https://github.com/XiaTian-AC/scoop-faster-dooit`，CI 自动更新 manifest |
+| 个人 bucket | ✅ | `scoop bucket add faster-dooit https://github.com/XiaTian-AC-bucket`，CI 自动更新 manifest |
 | Scoop 官方 Extras | ⏳ 待定 | PR #18463；技术检查已过，但卡 **100 star/50 fork** 社区门槛，可能被关或特批 |
 | Winget | ⏳ 审核中 | PR #412633；wingetbot 流水线验证中，微软 reviewer 审核 |
 

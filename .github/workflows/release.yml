@@ -5,7 +5,7 @@
 # 2. 用 GitHub Actions 的 `scoop bucket` 更新个人 bucket 的 manifest（自动算 hash、自动提交）
 #
 # 需要仓库 Secret：
-#   SCOOP_BUCKET_TOKEN —— 一个有 scoop-faster-dooit 仓库写权限的 PAT
+#   SCOOP_BUCKET_TOKEN —— 一个有 XiaTian-AC-bucket 仓库写权限的 PAT
 #   （因为工作流用的 GITHUB_TOKEN 默认不能推送其他仓库）
 
 name: release
@@ -86,7 +86,7 @@ jobs:
 
       # Update the personal bucket via the GitHub Contents API. The token
       # must be a PAT (or fine-grained token) with write access to the
-      # XiaTian-AC/scoop-faster-dooit repository — set it as a repo secret
+      # XiaTian-AC-bucket repository — set it as a repo secret
       # named SCOOP_BUCKET_TOKEN.
       - name: Publish manifest to scoop bucket
         env:
@@ -107,7 +107,7 @@ jobs:
           # 读现有文件 sha 用于更新（首次可能不存在，容错）
           EXISTING_SHA=$(curl -fsSL \
             -H "Authorization: token ${SCOOP_BUCKET_TOKEN}" \
-            "https://api.github.com/repos/XiaTian-AC/scoop-faster-dooit/contents/faster-dooit.json" \
+            "https://api.github.com/repos/XiaTian-AC/XiaTian-AC-bucket/contents/faster-dooit.json" \
             | python3 -c "import sys,json;print(json.load(sys.stdin).get('sha',''))" 2>/dev/null || true)
           PAYLOAD="{\"message\":\"Release v${VERSION}\",\"content\":\"$(base64 -w0 manifest.json)\""
           if [ -n "$EXISTING_SHA" ]; then PAYLOAD="$PAYLOAD,\"sha\":\"$EXISTING_SHA\""; fi
@@ -116,4 +116,4 @@ jobs:
             -H "Authorization: token ${SCOOP_BUCKET_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -d "$PAYLOAD" \
-            "https://api.github.com/repos/XiaTian-AC/scoop-faster-dooit/contents/faster-dooit.json"
+            "https://api.github.com/repos/XiaTian-AC/XiaTian-AC-bucket/contents/faster-dooit.json"

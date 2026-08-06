@@ -7,7 +7,7 @@
 你的待办工具要等两秒才打开，每次按键都卡一下。**faster-dooit** 是一个 vim 风格终端待办管理器，冷启动加载 **1 万个待办只需 ~34 ms**，而且从不轮询数据库——哪怕你把整个人生都放进去，它也快得感觉不到。
 
 ```
-scoop bucket add faster-dooit https://github.com/XiaTian-AC/scoop-faster-dooit
+scoop bucket add faster-dooit https://github.com/XiaTian-AC-bucket
 scoop install faster-dooit
 fdooit
 ```
@@ -47,7 +47,7 @@ fdooit
 
 ```powershell
 # 一次性添加我的个人 bucket
-scoop bucket add faster-dooit https://github.com/XiaTian-AC/scoop-faster-dooit
+scoop bucket add faster-dooit https://github.com/XiaTian-AC-bucket
 scoop install faster-dooit
 ```
 
