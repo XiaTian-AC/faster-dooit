@@ -27,8 +27,8 @@ func TestEvalDefaultConfig(t *testing.T) {
 
 func TestThemeLoaded(t *testing.T) {
 	rt, _ := EvalFile("../../config.lua")
-	if rt.Theme.Primary == "" {
-		t.Error("theme.primary not loaded")
+	if rt.Theme.Name == "" {
+		t.Error("theme.name not loaded")
 	}
 }
 

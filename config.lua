@@ -6,15 +6,24 @@
 -- timer / vars.theme / notify). It is NOT equivalent to the full dooit
 -- Python API; api.css and the plugin_manager are intentionally absent.
 --
--- Color palette: Nord-ish, matching the reference theme.
-api.vars.theme.primary = "#8FBCBB"
-api.vars.theme.secondary = "#81A1C1"
-api.vars.theme.background = "#2E3440"
-api.vars.theme.background1 = "#3B4252"
-api.vars.theme.green = "#A3BE8C"
-api.vars.theme.yellow = "#EBCB8B"
-api.vars.theme.orange = "#D08770"
-api.vars.theme.red = "#BF616A"
+-- Theme: pick a built-in preset, then optionally override individual colors.
+-- Built-ins: nord, catppuccin_mocha, catppuccin_latte, dracula,
+--            gruvbox_dark, solarized_light, tokyo_night
+api.vars.theme.name = "nord"
+
+-- Override a color on top of the selected theme (optional):
+-- api.vars.theme.primary = "#8FBCBB"
+-- api.vars.theme.secondary = "#81A1C1"
+-- api.vars.theme.background = "#2E3440"
+-- api.vars.theme.background1 = "#3B4252"
+-- api.vars.theme.green = "#A3BE8C"
+-- api.vars.theme.yellow = "#EBCB8B"
+-- api.vars.theme.orange = "#D08770"
+-- api.vars.theme.red = "#BF616A"
+-- api.vars.theme.dim = "#4C566A"
+-- api.vars.theme.selection = "#3B4252"
+-- api.vars.theme.border_focused = "#8FBCBB"
+-- api.vars.theme.border_unfocused = "#4C566A"
 
 -- Urgency colors for levels 1..5 (index 1 = urgency 1). Customize freely.
 api.vars.urgency_colors = { "#A3BE8C", "#EBCB8B", "#D08770", "#BF616A", "#FF5C5C" }

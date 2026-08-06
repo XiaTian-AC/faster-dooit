@@ -117,6 +117,22 @@ api.keys.set("x", api.toggle_complete) -- 单击 x 完成
 
 配置面是原版 Python API 的刻意精简子集：**keys / layouts / formatter / bar / dashboard / subscribe / timer / `vars.theme` / notify**。`api.css` 与插件管理器刻意不提供。找不到 `config.lua` 时用内置默认；无效配置打印 `file:line` 错误并退出。
 
+**主题选择**
+
+用 `api.vars.theme.name` 选择内置主题，之后可单独覆盖任意颜色：
+
+```lua
+api.vars.theme.name = "dracula"
+
+-- 在主题上覆盖单个颜色
+api.vars.theme.primary = "#FF79C6"
+```
+
+内置主题：`nord`、`catppuccin_mocha`、`catppuccin_latte`、`dracula`、
+`gruvbox_dark`、`solarized_light`、`tokyo_night`。可覆盖颜色：8 个基础色
+加 `dim`、`selection`、`border_focused`、`border_unfocused`、
+`urgency_colors`。未知主题名会报错退出。
+
 **主题示例：**
 
 ```lua

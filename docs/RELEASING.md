@@ -77,6 +77,10 @@ CI 自动：跨平台 Release + 更新个人 bucket manifest。用户 `scoop upd
 
 `workflow_dispatch` 输入版本号（如 `0.1.0`）会跳过 goreleaser，只重跑 bucket manifest 更新——用于修复 hash 或重发同版本。
 
+## 主题机制
+
+`api.vars.theme.name` 选择内置预设主题（nord / catppuccin_mocha / catppuccin_latte / dracula / gruvbox_dark / solarized_light / tokyo_night），单色覆盖（含 dim / selection / border_focused / border_unfocused / urgency_colors）叠加在预设之上。详见 README。
+
 ## 常见问题
 
 - **CI 没触发**：确认 tag 格式是 `v*`，且 `on.push.tags` 匹配

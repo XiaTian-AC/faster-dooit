@@ -117,6 +117,23 @@ api.keys.set("x", api.toggle_complete) -- single-key complete
 
 The config surface is a deliberately closed subset of the original Python API: **keys / layouts / formatter / bar / dashboard / subscribe / timer / `vars.theme` / notify**. `api.css` and the plugin manager are intentionally absent. If no `config.lua` is found, built-in defaults are used; an invalid file prints a `file:line` Lua error and exits.
 
+**Theme selection**
+
+Pick a built-in theme with `api.vars.theme.name`, then optionally override
+any color:
+
+```lua
+api.vars.theme.name = "dracula"
+
+-- override one color on top of the theme
+api.vars.theme.primary = "#FF79C6"
+```
+
+Built-in themes: `nord`, `catppuccin_mocha`, `catppuccin_latte`, `dracula`,
+`gruvbox_dark`, `solarized_light`, `tokyo_night`. Overridable colors: the 8
+base colors plus `dim`, `selection`, `border_focused`, `border_unfocused`,
+and `urgency_colors`. An unknown theme name is a config error.
+
 **Theme example:**
 
 ```lua
