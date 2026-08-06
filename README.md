@@ -152,7 +152,7 @@ go vet ./...
 go test ./internal/app/ -bench . -benchmem   # perf gates
 ```
 
-Design spec and implementation plan live under [`docs/superpowers/`](docs/superpowers/).
+Design spec and implementation plan live under [`docs/superpowers/`](docs/superpowers/); architecture and internals under [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Credits
 

@@ -152,7 +152,7 @@ go vet ./...
 go test ./internal/app/ -bench . -benchmem   # 性能门禁
 ```
 
-设计规格与实现计划见 [`docs/superpowers/`](docs/superpowers/)。
+设计规格与实现计划见 [`docs/superpowers/`](docs/superpowers/)；架构与内部原理见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
 
 ## 致谢
 
