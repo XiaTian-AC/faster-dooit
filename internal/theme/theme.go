@@ -16,6 +16,13 @@ type Theme struct {
 	Orange      string
 	Red         string
 
+	// Semantic colors for UI chrome: dimmed text / unfocused border,
+	// selected-row background, and focused border.
+	Dim             string
+	Selection       string
+	BorderFocused   string
+	BorderUnfocused string
+
 	// UrgencyColors maps urgency levels 1..5 to a color hex. Index 0 is the
 	// color for urgency 1. Empty when config.lua does not define it (callers
 	// fall back to built-in defaults).
@@ -50,6 +57,14 @@ func (t Theme) Color(name string) string {
 		return t.Orange
 	case "red":
 		return t.Red
+	case "dim":
+		return t.Dim
+	case "selection":
+		return t.Selection
+	case "border_focused":
+		return t.BorderFocused
+	case "border_unfocused":
+		return t.BorderUnfocused
 	}
 	return t.Primary
 }
