@@ -15,3 +15,7 @@ testdata_tmp/
 .idea/
 .vscode/
 *.swp
+
+# gstack local reports
+.gstack/
+
