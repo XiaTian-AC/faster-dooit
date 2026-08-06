@@ -317,6 +317,8 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 	if m.WorkspaceCursor < 0 {
 		m.WorkspaceCursor = 0
 	}
+	// Window bounds over the content rows (index 0 == first todo).
+	thumb, hasScrollbar := scrollbarThumb(len(ws), contentLines, scroll)
 	lo, hi := 0, len(ws)
 	if contentLines > 0 {
 		if scroll < 0 {
@@ -328,7 +330,14 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 			hi = len(ws)
 		}
 	}
+	contentW := w
+	if hasScrollbar {
+		contentW = w - 1
+	}
 	lines := make([]string, 0, hi-lo+2)
+	if hasScrollbar {
+		title += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[0]
+	}
 	lines = append(lines, title)
 	for i := lo; i < hi; i++ {
 		selected := i == m.WorkspaceCursor && m.focus == PaneWorkspace
@@ -340,12 +349,19 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 		indent := strings.Repeat("  ", ws[i].NestLevel())
 		// Inline edit: the focused row renders the text input instead of the row.
 		if m.mode == ModeInsert && selected {
-			lines = append(lines, indent+marker+m.input.View())
+			row := indent + marker + m.input.View()
+			if hasScrollbar {
+				row += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[i-lo]
+			}
+			lines = append(lines, row)
 			continue
 		}
 		row := indent + marker + m.RenderRow(PaneWorkspace, i)
 		if selected {
-			row = m.renderSelectedRow(row, w)
+			row = m.renderSelectedRow(row, contentW)
+		}
+		if hasScrollbar {
+			row += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[i-lo]
 		}
 		lines = append(lines, row)
 	}
@@ -394,7 +410,14 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 		}
 	}
 	markerW := 2
-	budget := w - markerW - maxIndent*2
+	// Reserve one column for the scrollbar when the content overflows the
+	// viewport; the scrollbar column is appended after each row.
+	thumb, hasScrollbar := scrollbarThumb(len(todos), contentLines, scroll)
+	contentW := w
+	if hasScrollbar {
+		contentW = w - 1
+	}
+	budget := contentW - markerW - maxIndent*2
 	if budget < 8 {
 		budget = 8
 	}
@@ -415,6 +438,9 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 	}
 
 	lines := make([]string, 0, hi-lo+2)
+	if hasScrollbar {
+		title += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[0]
+	}
 	lines = append(lines, title)
 	for i := lo; i < hi; i++ {
 		selected := i == m.TodoCursor && m.focus == PaneTodo
@@ -428,12 +454,18 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 		// small columns like effort don't clip what the user is typing.
 		if m.mode == ModeInsert && selected {
 			row := indent + marker + m.input.View()
+			if hasScrollbar {
+				row += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[i-lo]
+			}
 			lines = append(lines, row)
 			continue
 		}
 		row := indent + marker + m.formatTodoAligned(todos[i], cols, widths)
 		if selected {
-			row = m.renderSelectedRow(row, w)
+			row = m.renderSelectedRow(row, contentW)
+		}
+		if hasScrollbar {
+			row += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[i-lo]
 		}
 		lines = append(lines, row)
 	}
@@ -493,4 +525,44 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// scrollbarThumb returns the view row (0..view-1) the scrollbar thumb sits on
+// for total items, view visible rows, and the current scroll offset. ok=false
+// when the content fits the view (no scrollbar needed).
+func scrollbarThumb(total, view, scroll int) (int, bool) {
+	if view <= 0 || total <= view {
+		return 0, false
+	}
+	maxScroll := total - view
+	if scroll < 0 {
+		scroll = 0
+	}
+	if scroll > maxScroll {
+		scroll = maxScroll
+	}
+	// Thumb position proportional to scroll progress across the visible rows.
+	pos := 0
+	if maxScroll > 0 {
+		pos = scroll * (view - 1) / maxScroll
+	}
+	return pos, true
+}
+
+// scrollbarColumn renders a 1-column vertical scrollbar: a primary-colored
+// thumb on its row, dim-colored track elsewhere. Used when a pane's content
+// overflows its viewport (short terminals).
+func (m *Model) scrollbarColumn(view, thumb int) string {
+	th := m.appTheme()
+	thumbStyle := th.Style("primary")
+	trackStyle := th.Style("dim")
+	rows := make([]string, 0, view)
+	for i := 0; i < view; i++ {
+		if i == thumb {
+			rows = append(rows, thumbStyle.Render("█"))
+		} else {
+			rows = append(rows, trackStyle.Render("│"))
+		}
+	}
+	return strings.Join(rows, "\n")
 }

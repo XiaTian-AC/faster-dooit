@@ -4,10 +4,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
+
 	"github.com/XiaTian-AC/faster-dooit/internal/lua"
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
 	"github.com/XiaTian-AC/faster-dooit/internal/store"
-	"github.com/charmbracelet/lipgloss"
 )
 
 func TestCursorAlignsWithIndent(t *testing.T) {
@@ -479,5 +481,80 @@ func TestViewOutputSpansTerminalHeight(t *testing.T) {
 		if !strings.HasPrefix(line, ansiBackground(th.Background)) {
 			t.Fatalf("line %d missing background fill: %q", i, line)
 		}
+	}
+}
+
+// TestScrollbarThumbPosition: the thumb tracks the scroll offset.
+func TestScrollbarThumbPosition(t *testing.T) {
+	// 10 items, 4 visible rows. scroll=0 => thumb at top (0).
+	if got, ok := scrollbarThumb(10, 4, 0); !ok || got != 0 {
+		t.Fatalf("scroll=0: thumb=%d ok=%v, want 0 true", got, ok)
+	}
+	// scroll=maxScroll=6 => thumb at bottom (3).
+	if got, ok := scrollbarThumb(10, 4, 6); !ok || got != 3 {
+		t.Fatalf("scroll=6: thumb=%d ok=%v, want 3 true", got, ok)
+	}
+	// scroll=3 (middle) => thumb at ~1.
+	if got, ok := scrollbarThumb(10, 4, 3); !ok || got != 1 {
+		t.Fatalf("scroll=3: thumb=%d ok=%v, want 1 true", got, ok)
+	}
+}
+
+// TestScrollbarHiddenWhenFits: no thumb when the content fits the view.
+func TestScrollbarHiddenWhenFits(t *testing.T) {
+	if _, ok := scrollbarThumb(3, 4, 0); ok {
+		t.Fatal("content that fits the view must not produce a scrollbar")
+	}
+}
+
+// TestScrollbarColumnRendersThumb: the column renders a primary-colored thumb
+// on the thumb row and dim-colored track elsewhere.
+func TestScrollbarColumnRendersThumb(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "nord"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(st, rt)
+	col := m.scrollbarColumn(4, 1) // 4 rows, thumb at index 1
+	rows := strings.Split(col, "\n")
+	if len(rows) != 4 {
+		t.Fatalf("scrollbar column should have 4 rows, got %d", len(rows))
+	}
+	// Thumb row carries a foreground ANSI; track rows are dim.
+	if !strings.Contains(rows[1], "\x1b[") {
+		t.Fatalf("thumb row should be styled, got %q", rows[1])
+	}
+	if rows[0] == rows[1] {
+		t.Fatalf("track row and thumb row should differ")
+	}
+}
+
+// TestViewShowsScrollbarOnShortTerminal: a short terminal with many todos must
+// render a scrollbar thumb (primary-colored block) inside the todo pane.
+func TestViewShowsScrollbarOnShortTerminal(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	for i := 0; i < 12; i++ {
+		todo := &model.Todo{Description: "item", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID}
+		if err := m.store.SaveTodo(todo); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	// Short terminal: 12 todos + title exceed the ~11 content rows.
+	m.width, m.height = 120, 13
+	v := m.View()
+	th := m.appTheme()
+	if !strings.Contains(v, th.Style("primary").Render("█")) {
+		t.Fatalf("short terminal should render a primary-colored scrollbar thumb, got:\n%s", v)
 	}
 }
