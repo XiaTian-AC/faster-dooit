@@ -13,8 +13,10 @@ import (
 	"github.com/XiaTian-AC/faster-dooit/internal/store"
 )
 
-// version is the embedded version string; bumped by hand.
-const version = "0.1.0"
+// version is the embedded version string. It is overridden at release build
+// time via ldflags (see .goreleaser.yaml) with the git tag; the fallback
+// below is used for local `go build` runs.
+var version = "0.1.0"
 
 func main() {
 	cfg, err := parseFlags(os.Args[1:])

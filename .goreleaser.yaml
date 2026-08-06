@@ -16,6 +16,8 @@ builds:
     binary: fdooit
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
     goos:
       - windows
       - linux
