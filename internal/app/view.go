@@ -317,8 +317,19 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 	if m.WorkspaceCursor < 0 {
 		m.WorkspaceCursor = 0
 	}
-	// Window bounds over the content rows (index 0 == first todo).
-	thumb, hasScrollbar := scrollbarThumb(len(ws), contentLines, scroll)
+	// Window bounds over the content rows (index 0 == first workspace).
+	// contentLines (the pane height) includes the pinned title, so the
+	// scrollable content row count is one fewer. contentLines <= 0 renders
+	// every row with no scrolling, so no scrollbar either.
+	contentRows := contentLines - 1
+	if contentRows < 1 {
+		contentRows = 1
+	}
+	var thumb int
+	hasScrollbar := false
+	if contentLines > 1 {
+		thumb, hasScrollbar = scrollbarThumb(len(ws), contentRows, scroll)
+	}
 	lo, hi := 0, len(ws)
 	if contentLines > 0 {
 		if scroll < 0 {
@@ -336,7 +347,7 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 	}
 	lines := make([]string, 0, hi-lo+2)
 	if hasScrollbar {
-		title += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[0]
+		title += strings.Split(m.scrollbarColumn(contentRows, thumb), "\n")[0]
 	}
 	lines = append(lines, title)
 	for i := lo; i < hi; i++ {
@@ -351,7 +362,7 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 		if m.mode == ModeInsert && selected {
 			row := indent + marker + m.input.View()
 			if hasScrollbar {
-				row += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[i-lo]
+				row = m.appendScrollbar(row, contentW, contentRows, thumb, i-lo)
 			}
 			lines = append(lines, row)
 			continue
@@ -361,7 +372,7 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 			row = m.renderSelectedRow(row, contentW)
 		}
 		if hasScrollbar {
-			row += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[i-lo]
+			row = m.appendScrollbar(row, contentW, contentRows, thumb, i-lo)
 		}
 		lines = append(lines, row)
 	}
@@ -411,8 +422,19 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 	}
 	markerW := 2
 	// Reserve one column for the scrollbar when the content overflows the
-	// viewport; the scrollbar column is appended after each row.
-	thumb, hasScrollbar := scrollbarThumb(len(todos), contentLines, scroll)
+	// viewport; the scrollbar column is appended after each row. contentLines
+	// (the pane height) includes the pinned title, so the scrollable content
+	// row count is one fewer. contentLines <= 0 renders every row with no
+	// scrolling, so no scrollbar either.
+	contentRows := contentLines - 1
+	if contentRows < 1 {
+		contentRows = 1
+	}
+	var thumb int
+	hasScrollbar := false
+	if contentLines > 1 {
+		thumb, hasScrollbar = scrollbarThumb(len(todos), contentRows, scroll)
+	}
 	contentW := w
 	if hasScrollbar {
 		contentW = w - 1
@@ -439,7 +461,7 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 
 	lines := make([]string, 0, hi-lo+2)
 	if hasScrollbar {
-		title += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[0]
+		title += strings.Split(m.scrollbarColumn(contentRows, thumb), "\n")[0]
 	}
 	lines = append(lines, title)
 	for i := lo; i < hi; i++ {
@@ -455,7 +477,7 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 		if m.mode == ModeInsert && selected {
 			row := indent + marker + m.input.View()
 			if hasScrollbar {
-				row += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[i-lo]
+				row = m.appendScrollbar(row, contentW, contentRows, thumb, i-lo)
 			}
 			lines = append(lines, row)
 			continue
@@ -465,7 +487,7 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 			row = m.renderSelectedRow(row, contentW)
 		}
 		if hasScrollbar {
-			row += strings.Split(m.scrollbarColumn(contentLines, thumb), "\n")[i-lo]
+			row = m.appendScrollbar(row, contentW, contentRows, thumb, i-lo)
 		}
 		lines = append(lines, row)
 	}
@@ -527,42 +549,54 @@ func max(a, b int) int {
 	return b
 }
 
-// scrollbarThumb returns the view row (0..view-1) the scrollbar thumb sits on
-// for total items, view visible rows, and the current scroll offset. ok=false
-// when the content fits the view (no scrollbar needed).
-func scrollbarThumb(total, view, scroll int) (int, bool) {
-	if view <= 0 || total <= view {
+// scrollbarThumb returns the content row (0..contentRows-1) the scrollbar
+// thumb sits on for total items, contentRows visible content rows (title
+// excluded), and the current scroll offset. ok=false when the content fits
+// the view (no scrollbar needed).
+func scrollbarThumb(total, contentRows, scroll int) (int, bool) {
+	if contentRows <= 0 || total <= contentRows {
 		return 0, false
 	}
-	maxScroll := total - view
+	maxScroll := total - contentRows
 	if scroll < 0 {
 		scroll = 0
 	}
 	if scroll > maxScroll {
 		scroll = maxScroll
 	}
-	// Thumb position proportional to scroll progress across the visible rows.
+	// Thumb position proportional to scroll progress across the content rows.
 	pos := 0
 	if maxScroll > 0 {
-		pos = scroll * (view - 1) / maxScroll
+		pos = scroll * (contentRows - 1) / maxScroll
 	}
 	return pos, true
 }
 
-// scrollbarColumn renders a 1-column vertical scrollbar: a primary-colored
-// thumb on its row, dim-colored track elsewhere. Used when a pane's content
-// overflows its viewport (short terminals).
-func (m *Model) scrollbarColumn(view, thumb int) string {
+// scrollbarColumn renders a 1-column vertical scrollbar spanning the whole
+// pane (title row + contentRows rows): a primary-colored thumb on its row,
+// dim-colored track elsewhere. contentThumb is the content row the thumb
+// sits on; it maps to pane row contentThumb+1 (row 0 is the pinned title).
+func (m *Model) scrollbarColumn(contentRows, contentThumb int) string {
 	th := m.appTheme()
 	thumbStyle := th.Style("primary")
 	trackStyle := th.Style("dim")
-	rows := make([]string, 0, view)
-	for i := 0; i < view; i++ {
-		if i == thumb {
+	rows := make([]string, 0, contentRows+1)
+	for i := 0; i <= contentRows; i++ {
+		if i == contentThumb+1 {
 			rows = append(rows, thumbStyle.Render("█"))
 		} else {
 			rows = append(rows, trackStyle.Render("│"))
 		}
 	}
 	return strings.Join(rows, "\n")
+}
+
+// appendScrollbar appends the scrollbar column row for content row idx to a
+// pane row. contentRows is the visible content-row count, contentThumb the
+// thumb's content row. Rows are padded to the pane content width first so the
+// scrollbar sits flush against the pane's right edge on every row.
+func (m *Model) appendScrollbar(row string, contentW, contentRows, contentThumb, idx int) string {
+	row = padRight(row, contentW)
+	bar := m.scrollbarColumn(contentRows, contentThumb)
+	return row + strings.Split(bar, "\n")[idx+1]
 }

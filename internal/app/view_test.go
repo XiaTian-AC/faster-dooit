@@ -507,8 +507,8 @@ func TestScrollbarHiddenWhenFits(t *testing.T) {
 	}
 }
 
-// TestScrollbarColumnRendersThumb: the column renders a primary-colored thumb
-// on the thumb row and dim-colored track elsewhere.
+// TestScrollbarColumnRendersThumb: the column spans title + contentRows rows,
+// with a primary-colored thumb on row contentThumb+1 (row 0 is the title).
 func TestScrollbarColumnRendersThumb(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "nord"`)
@@ -521,17 +521,83 @@ func TestScrollbarColumnRendersThumb(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := New(st, rt)
-	col := m.scrollbarColumn(4, 1) // 4 rows, thumb at index 1
+	col := m.scrollbarColumn(4, 1) // 4 content rows, thumb on content row 1
 	rows := strings.Split(col, "\n")
-	if len(rows) != 4 {
-		t.Fatalf("scrollbar column should have 4 rows, got %d", len(rows))
+	if len(rows) != 5 {
+		t.Fatalf("scrollbar column should have 5 rows (title + 4 content), got %d", len(rows))
 	}
-	// Thumb row carries a foreground ANSI; track rows are dim.
-	if !strings.Contains(rows[1], "\x1b[") {
-		t.Fatalf("thumb row should be styled, got %q", rows[1])
+	// Thumb sits on row contentThumb+1 = 2, styled; the title row is track.
+	if !strings.Contains(rows[2], "\x1b[") {
+		t.Fatalf("thumb row should be styled, got %q", rows[2])
 	}
-	if rows[0] == rows[1] {
-		t.Fatalf("track row and thumb row should differ")
+	if rows[0] == rows[2] {
+		t.Fatalf("title track row and thumb row should differ")
+	}
+}
+
+// TestScrollbarFirstAndLastThumbVisible: the thumb must render when the first
+// or last item is selected (thumb on content row 0 or the bottom row) — it
+// must not be eaten by the title row or the last-content-row offset bug.
+func TestScrollbarFirstAndLastThumbVisible(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "nord"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(st, rt)
+	// First item selected (scroll=0) => thumb on content row 0 (pane row 1).
+	first := m.scrollbarColumn(4, 0)
+	firstRows := strings.Split(first, "\n")
+	if !strings.Contains(firstRows[1], "\x1b[") {
+		t.Fatalf("first-item thumb should render on pane row 1, got %q", firstRows)
+	}
+	// Last item selected (thumb on content row 3 => pane row 4).
+	last := m.scrollbarColumn(4, 3)
+	lastRows := strings.Split(last, "\n")
+	if !strings.Contains(lastRows[4], "\x1b[") {
+		t.Fatalf("last-item thumb should render on pane row 4, got %q", lastRows)
+	}
+}
+
+// TestAppendScrollbarPadsToEdge: the scrollbar must sit flush against the
+// pane's right edge on every row, regardless of row content length (nested
+// indentation must not pull the scrollbar inward).
+func TestAppendScrollbarPadsToEdge(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "nord"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(st, rt)
+	short := m.appendScrollbar("abc", 10, 4, 1, 0)
+	long := m.appendScrollbar("abcdefghij", 10, 4, 1, 1)
+	// Both rows must end at the same visible width (contentW 10 + scrollbar 1).
+	if lipgloss.Width(short) != 11 || lipgloss.Width(long) != 11 {
+		t.Fatalf("scrollbar must align right edge: short=%d long=%d, want 11", lipgloss.Width(short), lipgloss.Width(long))
+	}
+	// The scrollbar column must sit at the same rightmost position in both
+	// rows: each stripANSI row is 11 chars (10 content + 1 scrollbar), and the
+	// last char is the scrollbar glyph.
+	ss := []rune(stripANSI(short))
+	ls := []rune(stripANSI(long))
+	if len(ss) != 11 || len(ls) != 11 {
+		t.Fatalf("rows should be 11 chars wide: short=%d long=%d", len(ss), len(ls))
+	}
+	if ss[len(ss)-1] != '│' && ss[len(ss)-1] != '█' {
+		t.Fatalf("short row should end with a scrollbar glyph, got %q", ss)
+	}
+	if ls[len(ls)-1] != '│' && ls[len(ls)-1] != '█' {
+		t.Fatalf("long row should end with a scrollbar glyph, got %q", ls)
 	}
 }
 
@@ -556,5 +622,38 @@ func TestViewShowsScrollbarOnShortTerminal(t *testing.T) {
 	th := m.appTheme()
 	if !strings.Contains(v, th.Style("primary").Render("█")) {
 		t.Fatalf("short terminal should render a primary-colored scrollbar thumb, got:\n%s", v)
+	}
+}
+
+// TestScrollbarThumbVisibleAtEnds: with many todos in a short terminal, moving
+// the cursor to the last item (scroll to bottom) must still render the thumb
+// in the scrollbar column — the last-content-row offset must not swallow it.
+func TestScrollbarThumbVisibleAtEnds(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	for i := 0; i < 12; i++ {
+		todo := &model.Todo{Description: "item", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID}
+		if err := m.store.SaveTodo(todo); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	m.width, m.height = 120, 13
+	th := m.appTheme()
+	thumb := th.Style("primary").Render("█")
+	// Cursor on the last item => scroll to bottom; the thumb must be visible.
+	m.TodoCursor = len(m.visibleTodos()) - 1
+	v := m.View()
+	if !strings.Contains(v, thumb) {
+		t.Fatalf("scroll-to-bottom must keep the thumb visible, got:\n%s", v)
+	}
+	// Cursor back on the first item => thumb at top, still visible.
+	m.TodoCursor = 0
+	v = m.View()
+	if !strings.Contains(v, thumb) {
+		t.Fatalf("first item selected must keep the thumb visible, got:\n%s", v)
 	}
 }
