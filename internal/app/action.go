@@ -30,6 +30,7 @@ func (m *Model) defaultActions() map[string]Action {
 		"shift_up":               wrap(m.actionShiftUp),
 		"toggle_expand":          wrap(m.actionToggleExpand),
 		"toggle_expand_parent":   wrap(m.actionToggleExpandParent),
+		"toggle_description_expand": wrap(m.toggleDescriptionExpand),
 		"copy_description":       wrap(m.actionCopyDescription),
 		"copy_model":             wrap(m.actionCopyModel),
 		"paste_below":            wrap(m.actionPasteBelow),
@@ -544,6 +545,18 @@ func (m *Model) actionToggleExpandParent(_ *Model) tea.Cmd {
 	return nil
 }
 
+// toggleDescriptionExpand toggles the selected todo's full multi-line
+// description (session-only).
+func (m *Model) toggleDescriptionExpand(_ *Model) tea.Cmd {
+	t := m.selectedTodo()
+	if t == nil {
+		return nil
+	}
+	m.expandedDesc[t.ID] = !m.expandedDesc[t.ID]
+	m.BumpVersion()
+	return nil
+}
+
 // ----- clipboard -----
 
 func (m *Model) actionCopyDescription(_ *Model) tea.Cmd {
@@ -753,7 +766,7 @@ func reindexTodoSlice(s []*model.Todo) {
 func (m *Model) startInlineEdit(placeholder string) tea.Cmd {
 	m.editField = "description"
 	m.editPlaceholder = placeholder
-	m.input = newInput(placeholder)
+	m.input = m.newInput(placeholder)
 	m.mode = ModeInsert
 	m.BumpVersion()
 	return nil

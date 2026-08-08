@@ -121,13 +121,14 @@ func (m *Model) formatTodo(t *model.Todo) string {
 
 // columnWidths assigns a fixed width per column so rows line up like a table.
 // description is elastic (absorbs the remaining budget); other columns are
-// sized to their typical content. `paneW` is the total width budget available
-// for the columns (markers/indent are handled by the caller). When the budget
-// is enough, widths are sized so sum(widths) + (ncols-1) gaps == paneW; with
-// a tight budget the elastic columns are floored at 1 each, so the sum can
+// sized to their typical content. `cols` is the explicit column list (already
+// narrowed by visibleColumns for the pane width and by activeColumns for the
+// row's non-empty cells). `paneW` is the total width budget available for the
+// columns (markers/indent are handled by the caller). When the budget is
+// enough, widths are sized so sum(widths) + (ncols-1) gaps == paneW; with a
+// tight budget the elastic columns are floored at 1 each, so the sum can
 // exceed paneW (indent is accounted for by the caller).
-func (m *Model) columnWidths(pane int, paneW int) map[string]int {
-	cols := m.visibleColumns(pane, paneW)
+func (m *Model) columnWidths(cols []string, paneW int) map[string]int {
 	widths := make(map[string]int, len(cols))
 	fixed := 0
 	var elastic []string
@@ -226,18 +227,131 @@ func (m *Model) visibleColumns(pane int, paneW int) []string {
 	return cols
 }
 
-// formatTodoAligned renders a todo row with each column padded to a fixed
-// width (a table layout).
-func (m *Model) formatTodoAligned(t *model.Todo, cols []string, widths map[string]int) string {
+// activeColumns returns the columns whose cell is non-empty for this todo,
+// so empty due/effort/recurrence columns don't consume width (and their gap).
+// status and description are always kept.
+func (m *Model) activeColumns(t *model.Todo, cols []string) []string {
+	out := make([]string, 0, len(cols))
+	for _, c := range cols {
+		if c == "status" || c == "description" {
+			out = append(out, c)
+			continue
+		}
+		if m.formatTodoColumn(c, t) != "" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// renderTodoRow joins the todo's active columns into one aligned row. The
+// description cell is passed in (styled separately for collapsed vs expanded
+// rendering); every cell is fit to its column width.
+func (m *Model) renderTodoRow(t *model.Todo, cols []string, widths map[string]int, descCell string) string {
 	parts := make([]string, 0, len(cols))
 	for _, col := range cols {
-		cell := m.formatTodoColumn(col, t)
+		cell := descCell
+		if col != "description" {
+			cell = m.formatTodoColumn(col, t)
+		}
 		if w := widths[col]; w > 0 {
 			cell = fitColumn(cell, w)
 		}
 		parts = append(parts, cell)
 	}
 	return strings.Join(parts, " ")
+}
+
+// formatTodoAligned renders a todo row with each column padded to a fixed
+// width (a table layout). Empty due/effort/recurrence columns are dropped per
+// row so the freed width (and gaps) goes to the elastic description column.
+// An expanded long description returns multiple lines: the first keeps all
+// columns, continuation lines show only the description indented to its
+// column (bounded by maxDescLines; 0 = never ellipsized).
+func (m *Model) formatTodoAligned(t *model.Todo, cols []string, paneW int) []string {
+	active := m.activeColumns(t, cols)
+	widths := m.columnWidths(active, paneW)
+
+	if !m.expandedDesc[t.ID] {
+		return []string{m.renderTodoRow(t, active, widths, m.formatTodoColumn("description", t))}
+	}
+
+	descW := widths["description"]
+	if descW < 1 {
+		descW = 1
+	}
+	wrapped := wrapDescription(t.Description, descW)
+	// The expanded first line uses the first wrap fragment (styled) so line 0
+	// and the continuation lines agree on the split point.
+	first := m.renderTodoRow(t, active, widths, m.appTheme().Style("primary").Render(wrapped[0]))
+
+	out := []string{first}
+	maxLines := m.maxDescLines
+	if maxLines > 0 {
+		for i := 1; i < len(wrapped) && len(out) < maxLines; i++ {
+			out = append(out, wrapped[i])
+		}
+		// More description remains than fits: the last rendered line signals it
+		// with an ellipsis.
+		if len(wrapped) > len(out) {
+			out[len(out)-1] = ellipsizeTail(out[len(out)-1], descW)
+		}
+	} else {
+		// maxDescLines == 0: never ellipsize — always show the full
+		// description, even if it pushes the row past the default line count.
+		out = append(out, wrapped[1:]...)
+	}
+
+	// Continuation lines align under the first line's description column
+	// (marker/indent are prepended by the caller on every line).
+	offset := 0
+	for _, c := range active {
+		if c == "description" {
+			break
+		}
+		offset += widths[c] + 1 // +1 gap
+	}
+	for i := 1; i < len(out); i++ {
+		out[i] = strings.Repeat(" ", offset) + out[i]
+	}
+	return out
+}
+
+// wrapDescription splits a description into display lines of at most w
+// columns, word-wrapping where possible and hard-breaking over-wide fragments
+// (e.g. CJK text without spaces). Preserves words for space-separated text.
+func wrapDescription(s string, w int) []string {
+	if w < 1 {
+		w = 1
+	}
+	if s == "" {
+		return []string{""}
+	}
+	var out []string
+	for _, ln := range strings.Split(ansi.Wordwrap(s, w, " "), "\n") {
+		if lipgloss.Width(ln) <= w {
+			out = append(out, ln)
+			continue
+		}
+		for _, frag := range strings.Split(ansi.Hardwrap(ln, w, false), "\n") {
+			out = append(out, frag)
+		}
+	}
+	if len(out) == 0 {
+		return []string{""}
+	}
+	return out
+}
+
+// ellipsizeTail appends (or squeezes in) an ellipsis at the end of a
+// truncated line, padded to w columns so the "…" visibly signals more text.
+func ellipsizeTail(s string, w int) string {
+	if cur := lipgloss.Width(s); cur < w {
+		return padRight(s+"…", w)
+	}
+	// s fills (or exceeds) the width: keep w-1 columns plus the ellipsis.
+	// (ansi.Truncate would return s unchanged when it already fits.)
+	return padRight(ansi.Truncate(s, w-1, "")+"…", w)
 }
 
 // fitColumn clips a cell to at most n visible columns (with an ellipsis) and

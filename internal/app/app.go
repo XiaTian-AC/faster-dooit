@@ -41,6 +41,14 @@ type Model struct {
 	// expanded[id] = true if the node is expanded in its tree view.
 	expanded map[int64]bool
 
+	// expandedDesc[id] = true when a todo's long description is expanded to
+	// multiple lines (session-only, like fold state).
+	expandedDesc map[int64]bool
+
+	// maxDescLines bounds an expanded long description's rendered lines
+	// (default 3; 0 = never ellipsize, always show the full description).
+	maxDescLines int
+
 	// collapseDepth is the default collapse depth (0 = expand all) from
 	// config api.vars.collapse_depth. Overridden by manual z/Z toggles.
 	collapseDepth int
@@ -119,15 +127,18 @@ func New(st *store.Store, luaCfg *lua.Runtime) *Model {
 		bindings = bindingsFromLua(luaCfg.Keys)
 	}
 	m := &Model{
-		store:    st,
-		luaCfg:   luaCfg,
-		focus:    PaneWorkspace,
-		mode:     ModeNormal,
-		expanded: map[int64]bool{},
-		keys:     newKeyManager(bindings), //nolint:exhaustruct
+		store:        st,
+		luaCfg:       luaCfg,
+		focus:        PaneWorkspace,
+		mode:         ModeNormal,
+		expanded:     map[int64]bool{},
+		expandedDesc: map[int64]bool{},
+		maxDescLines: 3,
+		keys:         newKeyManager(bindings), //nolint:exhaustruct
 	}
 	if luaCfg != nil {
 		m.collapseDepth = luaCfg.CollapseDepth
+		m.maxDescLines = luaCfg.MaxDescriptionLines
 	}
 	m.actions = m.defaultActions()
 	return m

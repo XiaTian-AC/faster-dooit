@@ -444,7 +444,6 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 	if budget < 8 {
 		budget = 8
 	}
-	widths := m.columnWidths(PaneTodo, budget)
 	cols := m.visibleColumns(PaneTodo, budget)
 
 	// Window bounds over the content rows (index 0 == first todo).
@@ -484,14 +483,30 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 			lines = append(lines, row)
 			continue
 		}
-		row := indent + marker + m.formatTodoAligned(todos[i], cols, widths)
-		if selected {
-			row = m.renderSelectedRow(row, contentW)
+		// formatTodoAligned returns one line per rendered terminal row: an
+		// expanded long description spans continuation lines that show only
+		// the description (indented to its column). Selection highlight and
+		// scrollbar span all lines; the fold marker only sits on line 0.
+		rows := m.formatTodoAligned(todos[i], cols, budget)
+		for li, row := range rows {
+			var line string
+			if li == 0 {
+				line = indent + marker + row
+			} else {
+				// continuation: blank marker slot so the description stays
+				// aligned under the first line's description column.
+				line = indent + "  " + row
+			}
+			if selected {
+				line = m.renderSelectedRow(line, contentW)
+			}
+			// Selection highlight and the scrollbar span every line of an
+			// expanded row; the fold marker only sits on line 0.
+			if hasScrollbar {
+				line = m.appendScrollbar(line, contentW, contentRows, thumb, i-lo)
+			}
+			lines = append(lines, line)
 		}
-		if hasScrollbar {
-			row = m.appendScrollbar(row, contentW, contentRows, thumb, i-lo)
-		}
-		lines = append(lines, row)
 	}
 	return strings.Join(lines, "\n")
 }

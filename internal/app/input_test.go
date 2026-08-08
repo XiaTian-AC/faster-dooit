@@ -6,9 +6,27 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/XiaTian-AC/faster-dooit/internal/model"
 )
+
+// TestNewInputUsesThemeStyles: the textinput must style typed text with the
+// theme's secondary foreground and the placeholder with the theme's dim color,
+// so light themes (e.g. catppuccin_latte) stay readable.
+func TestNewInputUsesThemeStyles(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	m := newTestApp(t)
+	in := m.newInput("hint")
+	th := m.appTheme()
+	if got := in.TextStyle.Render("typed"); got != th.Style("secondary").Render("typed") {
+		t.Fatalf("input text style = %q, want theme secondary %q", got, th.Style("secondary").Render("typed"))
+	}
+	if got := in.PlaceholderStyle.Render("hint"); got != th.Style("dim").Render("hint") {
+		t.Fatalf("placeholder style = %q, want theme dim %q", got, th.Style("dim").Render("hint"))
+	}
+}
 
 func TestModeTransitions(t *testing.T) {
 	m := newTestApp(t)

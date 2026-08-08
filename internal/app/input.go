@@ -10,14 +10,19 @@ import (
 	"github.com/XiaTian-AC/faster-dooit/internal/dateparse"
 )
 
-// newInput returns a textinput configured with a prompt placeholder. The
-// input is focused so Update() accepts keystrokes (bubbles textinput ignores
-// keys while unfocused).
-func newInput(placeholder string) textinput.Model {
+// newInput returns a textinput configured with a prompt placeholder, styled
+// with the active theme so light themes (e.g. catppuccin_latte) stay readable:
+// typed text uses the theme's secondary foreground, the placeholder its dim.
+// The input is focused so Update() accepts keystrokes (bubbles textinput
+// ignores keys while unfocused).
+func (m *Model) newInput(placeholder string) textinput.Model {
 	t := textinput.New()
 	t.Placeholder = placeholder
 	t.Prompt = ""
 	t.CharLimit = 0
+	th := m.appTheme()
+	t.TextStyle = th.Style("secondary")
+	t.PlaceholderStyle = th.Style("dim")
 	t.Focus()
 	return t
 }
@@ -26,7 +31,7 @@ func newInput(placeholder string) textinput.Model {
 // Fields: description, due, effort, urgency, recurrence.
 func (m *Model) StartEdit(field string) tea.Cmd {
 	m.editField = field
-	m.input = newInput("")
+	m.input = m.newInput("")
 	m.mode = ModeInsert
 
 	switch field {
@@ -104,7 +109,7 @@ func (m *Model) cancelMode() {
 // plumbing (prompt, enter to apply, escape to cancel) is live now.
 func (m *Model) StartSearch() tea.Cmd {
 	m.mode = ModeSearch
-	m.input = newInput("/")
+	m.input = m.newInput("/")
 	m.BumpVersion()
 	return nil
 }
@@ -113,7 +118,7 @@ func (m *Model) StartSearch() tea.Cmd {
 // plumbing accepts a field name and returns to NORMAL.
 func (m *Model) StartSort() tea.Cmd {
 	m.mode = ModeSort
-	m.input = newInput("sort field")
+	m.input = m.newInput("sort field")
 	m.BumpVersion()
 	return nil
 }
@@ -126,7 +131,7 @@ func (m *Model) StartConfirm() tea.Cmd {
 // StartConfirmPrompt opens a confirm dialog with an arbitrary prompt + callback.
 func (m *Model) StartConfirmPrompt(prompt string, cb func() tea.Cmd) tea.Cmd {
 	m.mode = ModeConfirm
-	m.input = newInput(prompt)
+	m.input = m.newInput(prompt)
 	m.input.SetValue("")
 	m.confirmCallback = cb
 	m.BumpVersion()

@@ -116,6 +116,7 @@ func defaultKeyBindings() map[string]any {
 		"A":   "add_child",
 		"z":   "toggle_expand",
 		"Z":   "toggle_expand_parent",
+		"o":   "toggle_description_expand",
 		"J":   "shift_down",
 		"K":   "shift_up",
 		"y":   "copy_description",

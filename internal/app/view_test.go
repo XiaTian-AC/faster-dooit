@@ -745,3 +745,55 @@ func TestRowMarkerShowsFoldState(t *testing.T) {
 	}
 	t.Fatal("root row not found after collapse")
 }
+
+// TestExpandedDescriptionContinuationScrollbarAndHighlight: on a short
+// terminal with overflowing content, an expanded long description's
+// continuation lines render with the selection highlight and the scrollbar
+// column (they span the whole expanded row), and nothing overflows the pane.
+func TestExpandedDescriptionContinuationScrollbarAndHighlight(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	m.TodoCursor = 0
+	todo := m.selectedTodo()
+	todo.Description = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega and still more text that wraps to the second line"
+	if err := m.store.SaveTodo(todo); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 15; i++ {
+		item := &model.Todo{Description: "item", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID}
+		if err := m.store.SaveTodo(item); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	m.expandedDesc[m.selectedTodo().ID] = true
+	m.width, m.height = 120, 10
+	v := m.View()
+
+	// A continuation line (2nd+ wrap line of the expanded description) must
+	// carry the selection highlight and the scrollbar glyph.
+	found := false
+	for _, ln := range strings.Split(v, "\n") {
+		s := stripANSI(ln)
+		if strings.Contains(s, "wraps to the second line") {
+			found = true
+			if !strings.Contains(ln, "\x1b[48;2;") {
+				t.Fatalf("continuation line should carry the selection highlight: %q", ln)
+			}
+			if !strings.Contains(s, "▌") && !strings.Contains(s, "█") {
+				t.Fatalf("continuation line should carry the scrollbar glyph: %q", s)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("continuation line not rendered:\n%s", v)
+	}
+	for _, ln := range strings.Split(v, "\n") {
+		if lw := lipgloss.Width(ln); lw > m.width {
+			t.Errorf("expanded row overflows terminal by %d cols: %q", lw-m.width, ln)
+		}
+	}
+}

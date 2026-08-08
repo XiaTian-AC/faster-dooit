@@ -36,6 +36,10 @@ vars.urgency_colors = { "#A3BE8C", "#EBCB8B", "#D08770", "#BF616A", "#FF5C5C" }
 -- collapsed. 0 = expand everything (default). Toggle any node with z / Z.
 vars.collapse_depth = 0
 
+-- Max lines for an expanded long description (0 = never ellipsize). Press o
+-- to toggle a todo's full multi-line description.
+vars.max_description_lines = 3
+
 -- Column layout for each pane.
 layouts.workspace = { "description" }
 layouts.todo = { "status", "description", "due", "effort", "recurrence", "urgency" }
@@ -105,6 +109,7 @@ keys.set("d", edit_due)
 keys.set("r", edit_recurrence)
 keys.set("e", edit_effort)
 keys.set("a", add_sibling)
+keys.set("o", toggle_description_expand)
 keys.set("z", toggle_expand)
 keys.set("Z", toggle_expand_parent)
 keys.set("gg", go_to_top)

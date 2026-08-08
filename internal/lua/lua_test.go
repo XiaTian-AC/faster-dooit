@@ -240,6 +240,46 @@ func TestCollapseDepthDefaultsZero(t *testing.T) {
 	}
 }
 
+func TestMaxDescriptionLinesLoaded(t *testing.T) {
+	rt, err := EvalFileWithCode(`vars.max_description_lines = 5`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.MaxDescriptionLines != 5 {
+		t.Fatalf("max_description_lines = %d, want 5", rt.MaxDescriptionLines)
+	}
+}
+
+func TestMaxDescriptionLinesDefaultsThree(t *testing.T) {
+	rt, err := EvalFileWithCode(``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.MaxDescriptionLines != 3 {
+		t.Fatalf("max_description_lines default = %d, want 3", rt.MaxDescriptionLines)
+	}
+}
+
+func TestMaxDescriptionLinesZeroPreserved(t *testing.T) {
+	rt, err := EvalFileWithCode(`vars.max_description_lines = 0`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.MaxDescriptionLines != 0 {
+		t.Fatalf("explicit max_description_lines = 0 must be preserved (never ellipsize), got %d", rt.MaxDescriptionLines)
+	}
+}
+
+func TestEvalDefaultConfigMaxDescriptionLines(t *testing.T) {
+	rt, err := EvalFile("../../config.lua")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.MaxDescriptionLines != 3 {
+		t.Fatalf("config.lua max_description_lines = %d, want 3", rt.MaxDescriptionLines)
+	}
+}
+
 func TestOldAPISyntaxRejected(t *testing.T) {
 	if _, err := EvalFileWithCode(`api.vars.theme.name = "nord"`); err == nil {
 		t.Fatal("old api.* syntax must be rejected (no backward compat)")

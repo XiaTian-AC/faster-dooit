@@ -108,6 +108,10 @@ type Runtime struct {
 	// vars.collapse_depth (default 0 = everything expanded).
 	CollapseDepth int
 
+	// MaxDescriptionLines bounds an expanded long description's rendered
+	// lines (default 3; 0 = no ellipsis, always show the full description).
+	MaxDescriptionLines int
+
 	themeTable *lua.LTable // reference to the theme global for readTheme
 	varsTable  *lua.LTable // reference to the vars global for readTheme
 	explicit   map[string]string // recorded by the theme __newindex metatable
@@ -119,7 +123,8 @@ var actionNames = []string{
 	"move_down", "move_up", "go_to_top", "go_to_bottom",
 	"add_sibling", "add_child", "delete", "toggle_complete",
 	"increase_urgency", "decrease_urgency", "shift_down", "shift_up",
-	"toggle_expand", "toggle_expand_parent", "copy_description",
+	"toggle_expand", "toggle_expand_parent", "toggle_description_expand",
+	"copy_description",
 	"copy_model", "paste_below", "paste_above", "switch_focus",
 	"enter_edit_description", "start_search", "start_sort",
 	"edit_description", "edit_due", "edit_recurrence", "edit_effort",
@@ -488,6 +493,14 @@ func (rt *Runtime) readTheme() error {
 	if rt.varsTable != nil {
 		if n, ok := L.GetField(rt.varsTable, "collapse_depth").(lua.LNumber); ok {
 			rt.CollapseDepth = int(n)
+		}
+	}
+
+	// vars.max_description_lines (default 3; 0 = never ellipsize).
+	rt.MaxDescriptionLines = 3
+	if rt.varsTable != nil {
+		if n, ok := L.GetField(rt.varsTable, "max_description_lines").(lua.LNumber); ok {
+			rt.MaxDescriptionLines = int(n)
 		}
 	}
 
