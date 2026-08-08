@@ -43,7 +43,30 @@ fdooit
 
 ## Install
 
-### Scoop (recommended)
+### One-line install (recommended)
+
+```bash
+# macOS / Linux (prefers Homebrew, falls back to a direct binary download)
+curl -fsSL https://raw.githubusercontent.com/XiaTian-AC/faster-dooit/main/install.sh | bash
+```
+
+```powershell
+# Windows / PowerShell (prefers Scoop, falls back to a direct zip download)
+iwr -useb https://raw.githubusercontent.com/XiaTian-AC/faster-dooit/main/install.ps1 | iex
+```
+
+The command is `fdooit` (not `faster-dooit`).
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap XiaTian-AC/XiaTian-AC-bucket
+brew install faster-dooit
+```
+
+The tap manifest is auto-updated by the release CI.
+
+### Scoop (Windows)
 
 ```powershell
 # One-time: add my personal bucket
@@ -51,15 +74,7 @@ scoop bucket add faster-dooit https://github.com/XiaTian-AC/XiaTian-AC-bucket
 scoop install faster-dooit
 ```
 
-The command is `fdooit` (not `faster-dooit`). The personal-bucket manifest is auto-updated by the release CI — tag a release and the bucket updates itself.
-
-### Winget
-
-```powershell
-winget install faster-dooit
-```
-
-> Status: official winget-pkgs PR submitted (under Microsoft review). Until then use the Scoop bucket or build from source.
+The personal-bucket manifest is auto-updated by the release CI.
 
 ### Build from source
 

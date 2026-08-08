@@ -43,7 +43,30 @@ fdooit
 
 ## 安装
 
-### Scoop（推荐）
+### 一键安装（推荐）
+
+```bash
+# macOS / Linux（优先 Homebrew，没有则直接下载二进制）
+curl -fsSL https://raw.githubusercontent.com/XiaTian-AC/faster-dooit/main/install.sh | bash
+```
+
+```powershell
+# Windows / PowerShell（优先 Scoop，没有则直接下载 zip）
+iwr -useb https://raw.githubusercontent.com/XiaTian-AC/faster-dooit/main/install.ps1 | iex
+```
+
+安装后命令为 `fdooit`（不是 `faster-dooit`）。
+
+### Homebrew（macOS / Linux）
+
+```bash
+brew tap XiaTian-AC/XiaTian-AC-bucket
+brew install faster-dooit
+```
+
+tap 的 manifest 由发布 CI 自动更新。
+
+### Scoop（Windows）
 
 ```powershell
 # 一次性添加我的个人 bucket
@@ -51,15 +74,7 @@ scoop bucket add faster-dooit https://github.com/XiaTian-AC/XiaTian-AC-bucket
 scoop install faster-dooit
 ```
 
-安装后命令为 `fdooit`（不是 `faster-dooit`）。个人 bucket 的 manifest 由发布 CI 自动更新——打一个 tag，bucket 就自动同步。
-
-### Winget
-
-```powershell
-winget install faster-dooit
-```
-
-> 状态：已提交官方 winget-pkgs PR（微软审核中）。在此之前可用 Scoop bucket 或源码构建。
+个人 bucket 的 manifest 由发布 CI 自动更新。
 
 ### 手动构建
 

@@ -15,7 +15,7 @@
 
 ## 发布流程
 
-详见 `docs/RELEASING.md`。核心：`git tag vX.Y.Z && git push origin vX.Y.Z` 触发 CI 自动构建 Release + 更新统一 scoop bucket（`XiaTian-AC/XiaTian-AC-bucket`）。
+详见 `docs/RELEASING.md`。核心：`git tag vX.Y.Z && git push origin vX.Y.Z` 触发 CI 自动构建 Release + 更新统一 scoop bucket（`XiaTian-AC/XiaTian-AC-bucket`）+ Homebrew tap（`XiaTian-AC/homebrew-XiaTian-AC-bucket`）。官方 Scoop Extras / Winget 不在 CI 内。
 
 ## 默认路径
 

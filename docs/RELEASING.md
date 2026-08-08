@@ -6,12 +6,14 @@
 
 | 要素 | 位置 | 说明 |
 |---|---|---|
-| LICENSE | `LICENSE` | MIT，scoop/winget 审核必须 |
-| 版本 tag | `v0.1.0` 等 | 触发 CI 构建 + Release |
-| CI 工作流 | `.github/workflows/release.yml` | 跨平台编译 → 打 zip → 上传 Release → 更新 scoop manifest |
+| LICENSE | `LICENSE` | MIT |
+| 版本 tag | `vX.Y.Z` | 触发 CI 构建 + Release |
+| CI 工作流 | `.github/workflows/release.yml` | 跨平台编译 → 打 zip/tar.gz → 上传 Release → 更新 scoop bucket + Homebrew tap |
 | 统一 scoop bucket | `XiaTian-AC-bucket` | 所有项目共用的个人 bucket，`scoop install` 用，manifest 由各项目 CI 自动更新 |
-| Winget manifest | `.winget/manifests/` | 已归档；用 `wingetcreate submit` 提交 |
-| Scoop 官方 | ScoopInstaller/Extras | 已提交 PR |
+| Homebrew tap | `homebrew-XiaTian-AC-bucket` | `brew install faster-dooit` 用，formula 由各项目 CI 自动更新 |
+| 一键安装脚本 | `install.sh` / `install.ps1` | 仓库根目录，分别面向 macOS/Linux 与 Windows |
+
+官方 Scoop Extras 与 Winget **不在 CI 流程内**（需人工审核，且社区门槛高），以个人渠道为主。
 
 ## 一键发布步骤
 
@@ -21,28 +23,26 @@ git checkout main
 go test ./... && go vet ./...
 
 # 2. 打 tag（触发 CI）
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.1
+git push origin v0.3.1
 
 # 3. 等 CI 完成：Actions → release 工作流
 #    - release job: 生成 Release（跨平台 zip/tar.gz + checksums）
-#    - update-scoop-bucket job: 用 API 更新个人 bucket 的 manifest（真实 hash）
+#    - update-scoop-bucket: 更新个人 bucket 的 manifest（真实 hash）
+#    - update-homebrew-tap: 更新 Homebrew tap 的 formula（4 平台 hash）
 
-# 4. 验证 scoop 可装
-scoop update faster-dooit
-scoop info faster-dooit
-
-# 5. Winget 提交新版本（手动，因需要审核）
-wingetcreate update --urls "https://github.com/XiaTian-AC/faster-dooit/releases/download/v0.2.0/faster-dooit-windows-amd64.zip" --version 0.2.0 --submit
+# 4. 验证渠道
+scoop update faster-dooit   # Windows
+brew update && brew upgrade faster-dooit   # macOS/Linux
 ```
 
 ## 必备 Secret
 
-`SCOOP_BUCKET_TOKEN`（仓库 secret）——用于 CI 更新统一 bucket 的 manifest。
-这是一个有 `XiaTian-AC-bucket` 仓库写权限的 **Fine-grained PAT**：
+`SCOOP_BUCKET_TOKEN`（仓库 secret）——用于 CI 更新统一 bucket 与 Homebrew tap。
+这是一个有 **两个仓库** 写权限的 **Fine-grained PAT**：
 
 1. GitHub → Settings → Developer settings → Fine-grained tokens → Generate
-2. 勾选 `XiaTian-AC-bucket`，权限：Contents → Read and write
+2. 勾选 `XiaTian-AC-bucket` 与 `homebrew-XiaTian-AC-bucket`，权限：Contents → Read and write
 3. 设为仓库 secret：
    ```powershell
    gh secret set SCOOP_BUCKET_TOKEN --repo XiaTian-AC/faster-dooit
@@ -50,32 +50,28 @@ wingetcreate update --urls "https://github.com/XiaTian-AC/faster-dooit/releases/
 
 > ⚠️ 不要用 `gh auth token`（会过期）。用专门的 PAT 才能长期自动更新。
 
-## 发布状态（v0.1.0）
+## 发布渠道
 
 | 渠道 | 状态 | 说明 |
 |---|---|---|
-| GitHub Release v0.1.0 | ✅ | 跨平台 zip/tar.gz + checksums |
-| 个人 bucket | ✅ | `scoop bucket add faster-dooit https://github.com/XiaTian-AC/XiaTian-AC-bucket`，CI 自动更新 manifest |
-| Scoop 官方 Extras | ⏳ 待定 | PR #18463；技术检查已过，但卡 **100 star/50 fork** 社区门槛，可能被关或特批 |
-| Winget | ⏳ 审核中 | PR #412633；wingetbot 流水线验证中，微软 reviewer 审核 |
-
-**重要认知**：Scoop Extras 对 GitHub 托管的包要求 ≥100 star 或 ≥50 fork（`not-meet-criteria` 标签）。新项目通常达不到，**个人 bucket 是主要分发路径**，官方渠道是"star 上来后的加分项"。
+| GitHub Release | ✅ | 跨平台 zip/tar.gz + checksums |
+| 统一 scoop bucket | ✅ | `scoop bucket add faster-dooit https://github.com/XiaTian-AC/XiaTian-AC-bucket`，CI 自动更新 |
+| Homebrew tap | ✅ | `brew tap XiaTian-AC/XiaTian-AC-bucket && brew install faster-dooit`，CI 自动更新 |
 
 ## 主路径（发布后立即可用）
 
 每次发版：
 
 ```powershell
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.3.1 && git push origin v0.3.1
 ```
 
-CI 自动：跨平台 Release + 更新个人 bucket manifest。用户 `scoop update faster-dooit` 即可升级。
-
-官方渠道（winget/scoop Extras）在新版本发布后需**手动**更新 PR——winget 用 `wingetcreate update`，scoop Extras 更新 `bucket/faster-dooit.json`（`.scoop/` 模板渲染后）。
+CI 自动：跨平台 Release + 更新 scoop bucket manifest + 更新 Homebrew formula。
+用户通过 `scoop update faster-dooit` 或 `brew upgrade faster-dooit` 升级，或重跑一键安装脚本。
 
 ## 手动触发（不重建 Release）
 
-`workflow_dispatch` 输入版本号（如 `0.1.0`）会跳过 goreleaser，只重跑 bucket manifest 更新——用于修复 hash 或重发同版本。
+`workflow_dispatch` 输入版本号（如 `0.1.0`）会跳过 goreleaser，只重跑 bucket/tap 的 manifest 更新——用于修复 hash 或重发同版本。
 
 ## 主题机制
 
@@ -84,13 +80,15 @@ CI 自动：跨平台 Release + 更新个人 bucket manifest。用户 `scoop upd
 ## 常见问题
 
 - **CI 没触发**：确认 tag 格式是 `v*`，且 `on.push.tags` 匹配
-- **bucket manifest hash 为 0**：检查 `Publish manifest to scoop bucket` 步骤日志——`TAG` 必须正确（dispatch 时要传 `version` 输入）
-- **winget 审核失败**：确认 Release 的 zip 里 exe 名是 `faster-dooit.exe`（NestedInstallerFiles.RelativeFilePath 匹配）
-- **scoop 官方审核**：遵循 ScoopInstaller/Extras 的 PR 模板，manifest 需含 `checkver` + `autoupdate`
+- **bucket/tap manifest hash 为 0**：检查对应 job 日志——`TAG` 必须正确（dispatch 时要传 `version` 输入）
+- **Homebrew formula 报 sha256 不匹配**：确认 `.brew/faster-dooit.rb.tmpl` 的 4 个占位符都被替换（检查 `sha()` 提取结果）
+- **PAT 403**：确认 Fine-grained PAT 同时授权了 `XiaTian-AC-bucket` 和 `homebrew-XiaTian-AC-bucket`
 
 ## 产物命名约定
 
-统一命名为 `fdooit`（命令名）：
-
-- `faster-dooit-windows-amd64.zip`（含 `faster-dooit.exe`，scoop/winget 的 bin 映射到 `fdooit`）
-- `faster-dooit-linux-amd64.tar.gz` / `faster-dooit-darwin-*.tar.gz`
+- **二进制名**：`fdooit`（命令名）
+- **归档名**（GoReleaser 用 ProjectName）：`faster-dooit-{os}-{arch}.{ext}`
+  - Windows: `faster-dooit-windows-amd64.zip`
+  - Linux/macOS: `faster-dooit-linux-{amd64,arm64}.tar.gz`、`faster-dooit-darwin-{amd64,arm64}.tar.gz`
+- **scoop manifest**：`.scoop/faster-dooit.json.tmpl` → `XiaTian-AC-bucket/faster-dooit.json`
+- **Homebrew formula**：`.brew/faster-dooit.rb.tmpl` → `homebrew-XiaTian-AC-bucket/Formula/faster-dooit.rb`

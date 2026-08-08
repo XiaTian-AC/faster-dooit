@@ -2,11 +2,14 @@
 #
 # 发布工作流：打 tag vX.Y.Z 触发。
 # 1. GoReleaser 跨平台编译 + 打包 + 上传 Release
-# 2. 用 GitHub Actions 的 `scoop bucket` 更新个人 bucket 的 manifest（自动算 hash、自动提交）
+# 2. update-scoop-bucket: 渲染 .scoop 模板，更新个人 scoop bucket（XiaTian-AC-bucket）
+# 3. update-homebrew-tap: 渲染 .brew 模板，更新 Homebrew tap（homebrew-XiaTian-AC-bucket）
+#
+# 官方 Scoop Extras 和 Winget 不在此流程（需人工审核，见 docs/RELEASING.md）。
 #
 # 需要仓库 Secret：
-#   SCOOP_BUCKET_TOKEN —— 一个有 XiaTian-AC-bucket 仓库写权限的 PAT
-#   （因为工作流用的 GITHUB_TOKEN 默认不能推送其他仓库）
+#   SCOOP_BUCKET_TOKEN —— 一个有 XiaTian-AC-bucket 与 homebrew-XiaTian-AC-bucket
+#   两个仓库写权限的 Fine-grained PAT。
 
 name: release
 
@@ -51,14 +54,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 手动 dispatch 时跳过 goreleaser（tag 已存在，Release 已生成），
-      # 但 still run tests 已在上一步执行，仅用于验证。
+  # ---- compute version + download checksums once, shared by both jobs ----
+  # Each publish job re-derives inputs from the release, so it stays
+  # independent (no cross-job artifact passing).
 
   update-scoop-bucket:
     needs: release
     runs-on: ubuntu-latest
     steps:
-      # Checkout the SOURCE repo (contains .scoop/faster-dooit.json.tmpl).
       - name: Checkout source
         uses: actions/checkout@v4
         with:
@@ -67,7 +70,6 @@ jobs:
       - name: Compute release version
         id: ver
         run: |
-          # 从 tag（v0.1.0）或手动输入取版本号
           if [ -n "${{ inputs.version }}" ]; then
             echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
             echo "tag=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
@@ -76,18 +78,12 @@ jobs:
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Render manifest from template
+      - name: Render scoop manifest
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          # 只填版本，SHA 由下一步从 checksums 提取后填入
-          sed "s/__VERSION__/${VERSION}/g" \
-            .scoop/faster-dooit.json.tmpl > manifest.json
+          sed "s/__VERSION__/${VERSION}/g" .scoop/faster-dooit.json.tmpl > manifest.json
 
-      # Update the personal bucket via the GitHub Contents API. The token
-      # must be a PAT (or fine-grained token) with write access to the
-      # XiaTian-AC-bucket repository — set it as a repo secret
-      # named SCOOP_BUCKET_TOKEN.
       - name: Publish manifest to scoop bucket
         env:
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
@@ -95,16 +91,14 @@ jobs:
           TAG: ${{ steps.ver.outputs.tag }}
         run: |
           set -euo pipefail
-          # 从 checksums.txt 取 windows zip 的真实 sha256
           SHA=$(curl -fsSL "https://github.com/${{ github.repository }}/releases/download/${TAG}/checksums.txt" \
             | awk '$2=="faster-dooit-windows-amd64.zip"{print $1}')
           if [ -z "$SHA" ]; then
-            echo "::error::Failed to extract SHA256 from checksums.txt for ${TAG}"
+            echo "::error::Failed to extract windows SHA256 from checksums.txt for ${TAG}"
             exit 1
           fi
           sed -i "s/__SHA256__/${SHA}/g" manifest.json
           grep -q "sha256:${SHA}" manifest.json || { echo "::error::SHA256 placeholder not substituted"; exit 1; }
-          # 读现有文件 sha 用于更新（首次可能不存在，容错）
           EXISTING_SHA=$(curl -fsSL \
             -H "Authorization: token ${SCOOP_BUCKET_TOKEN}" \
             "https://api.github.com/repos/XiaTian-AC/XiaTian-AC-bucket/contents/faster-dooit.json" \
@@ -117,3 +111,71 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -d "$PAYLOAD" \
             "https://api.github.com/repos/XiaTian-AC/XiaTian-AC-bucket/contents/faster-dooit.json"
+
+  update-homebrew-tap:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Compute release version
+        id: ver
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "tag=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Render Homebrew formula
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Pull the four per-platform tar.gz sha256 from checksums.txt.
+          CHK=$(mktemp)
+          curl -fsSL "https://github.com/${{ github.repository }}/releases/download/${TAG}/checksums.txt" -o "$CHK"
+          sha() { awk -v f="faster-dooit-$1.tar.gz" '$2==f{print $1}' "$CHK"; }
+          DARWIN_ARM64=$(sha darwin-arm64)
+          DARWIN_AMD64=$(sha darwin-amd64)
+          LINUX_ARM64=$(sha linux-arm64)
+          LINUX_AMD64=$(sha linux-amd64)
+          for v in "$DARWIN_ARM64" "$DARWIN_AMD64" "$LINUX_ARM64" "$LINUX_AMD64"; do
+            if [ -z "$v" ]; then
+              echo "::error::Failed to extract a platform sha256 from checksums.txt for ${TAG}"
+              exit 1
+            fi
+          done
+          sed -e "s/__VERSION__/${VERSION}/g" \
+              -e "s/__SHA256_DARWIN_ARM64__/${DARWIN_ARM64}/g" \
+              -e "s/__SHA256_DARWIN_AMD64__/${DARWIN_AMD64}/g" \
+              -e "s/__SHA256_LINUX_ARM64__/${LINUX_ARM64}/g" \
+              -e "s/__SHA256_LINUX_AMD64__/${LINUX_AMD64}/g" \
+              .brew/faster-dooit.rb.tmpl > formula.rb
+
+      - name: Publish formula to Homebrew tap
+        env:
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAP_REPO="XiaTian-AC/homebrew-XiaTian-AC-bucket"
+          # Formula must live under Formula/ for Homebrew to find it.
+          EXISTING_SHA=$(curl -fsSL \
+            -H "Authorization: token ${SCOOP_BUCKET_TOKEN}" \
+            "https://api.github.com/repos/${TAP_REPO}/contents/Formula/faster-dooit.rb" \
+            | python3 -c "import sys,json;print(json.load(sys.stdin).get('sha',''))" 2>/dev/null || true)
+          PAYLOAD="{\"message\":\"Release v${VERSION}\",\"content\":\"$(base64 -w0 formula.rb)\""
+          if [ -n "$EXISTING_SHA" ]; then PAYLOAD="$PAYLOAD,\"sha\":\"$EXISTING_SHA\""; fi
+          PAYLOAD="$PAYLOAD,\"branch\":\"main\"}"
+          curl -fsSL -X PUT \
+            -H "Authorization: token ${SCOOP_BUCKET_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d "$PAYLOAD" \
+            "https://api.github.com/repos/${TAP_REPO}/contents/Formula/faster-dooit.rb"
