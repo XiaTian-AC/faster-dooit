@@ -158,6 +158,21 @@ func TestDeepNestedRowsFitPaneWidth(t *testing.T) {
 	if err := m.RefreshFromStore(); err != nil {
 		t.Fatal(err)
 	}
+	// This test measures deep-nesting column budgets, so expand every node
+	// (collapse_depth defaults to 0, which collapses depth >= 1). Expand
+	// iteratively: each pass reveals one more level.
+	for {
+		expanded := false
+		for _, t := range m.visibleTodos() {
+			if _, ok := m.expanded[t.ID]; !ok && len(t.Todos) > 0 {
+				m.expanded[t.ID] = true
+				expanded = true
+			}
+		}
+		if !expanded {
+			break
+		}
+	}
 	if got := m.visibleTodos()[len(m.visibleTodos())-1].NestLevel(); got != 5 {
 		t.Fatalf("deepest nest level = %d, want 5", got)
 	}

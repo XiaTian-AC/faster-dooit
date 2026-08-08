@@ -429,3 +429,55 @@ func TestIsExpandedDefaultDepth(t *testing.T) {
 		t.Fatal("depth 2 should be collapsed with collapse_depth 1")
 	}
 }
+
+func TestVisibleTodosHonorsCollapse(t *testing.T) {
+	m := newTestApp(t)
+	root := m.selectedTodo()
+	child := &model.Todo{Description: "child", Pending: true, ParentTodoID: &root.ID}
+	root.Todos = append(root.Todos, child)
+	if err := m.store.SaveTodo(child); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(m.visibleTodos()); got != 2 {
+		t.Fatalf("expected 2 visible todos (root+child), got %d", got)
+	}
+	m.expanded[root.ID] = false
+	if got := len(m.visibleTodos()); got != 1 {
+		t.Fatalf("expected 1 visible todo after collapse, got %d", got)
+	}
+	if m.visibleTodos()[0].ID != root.ID {
+		t.Fatal("collapsed root should still be visible, child hidden")
+	}
+}
+
+func TestVisibleWorkspacesHonorsCollapse(t *testing.T) {
+	m := newTestApp(t)
+	top := m.root.Children[0]
+	nested := &model.Workspace{Description: "nested", OrderIndex: 0}
+	if err := m.store.SaveWorkspace(nested); err != nil {
+		t.Fatal(err)
+	}
+	// Persist nested under top (SaveWorkspace auto-attaches root-less to root,
+	// so set the parent explicitly and save again).
+	nested.ParentID = &top.ID
+	if err := m.store.SaveWorkspace(nested); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	top = m.root.Children[0]
+	if len(top.Children) != 1 {
+		t.Fatalf("expected 1 nested child under top, got %d", len(top.Children))
+	}
+	if got := len(m.VisibleWorkspaces()); got != 2 {
+		t.Fatalf("expected 2 visible workspaces, got %d", got)
+	}
+	m.expanded[top.ID] = false
+	if got := len(m.VisibleWorkspaces()); got != 1 {
+		t.Fatalf("expected 1 visible workspace after collapse, got %d", got)
+	}
+}

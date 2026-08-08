@@ -204,7 +204,7 @@ func (m *Model) VisibleWorkspaces() []*model.Workspace {
 	var walk func(ws *model.Workspace)
 	walk = func(ws *model.Workspace) {
 		out = append(out, ws)
-		if m.expanded[ws.ID] || true { // skeleton: always expand
+		if m.isExpanded(ws.ID, ws.NestLevel()) {
 			for _, c := range ws.Children {
 				walk(c)
 			}
@@ -229,7 +229,7 @@ func (m *Model) visibleTodos() []*model.Todo {
 		if m.filter == "" || matchesFilter(t, m.filter) {
 			out = append(out, t)
 		}
-		if m.expanded[t.ID] || true { // skeleton: always expand
+		if m.isExpanded(t.ID, t.NestLevel()) {
 			for _, c := range t.Todos {
 				walk(c)
 			}
