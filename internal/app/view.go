@@ -173,8 +173,13 @@ func (m *Model) renderDualPane() string {
 		paneW = 16
 	}
 	rightW := m.width - paneW - 4
-	// Each pane gets the full height minus the status bar.
-	maxLines := m.height - 1
+	// The pane box has a 1-row top and bottom border, and the status bar takes
+	// one row below. Content (title + rows) must fit in m.height - 1 - 2
+	// lines so the borders never extend past the terminal.
+	maxLines := m.height - 3
+	if maxLines < 1 {
+		maxLines = 1
+	}
 	// Content width inside the border: Width(n).Render gives n+2 columns, so
 	// content area is (n-2); pass the content width to the pane renderers.
 	left := m.renderWorkspacePaneClipped(paneW-2, maxLines)
@@ -200,12 +205,17 @@ func (m *Model) renderDualPane() string {
 // clipped by its own scroll offset.
 func (m *Model) renderStacked() string {
 	statusH := 1
-	avail := m.height - statusH
+	// Two panes, each with a 1-row top and bottom border (4 border rows total)
+	// above the status bar.
+	avail := m.height - statusH - 4
 	focusH := avail * 7 / 10
 	otherH := avail - focusH
-	if otherH < 3 {
-		otherH = 3
+	if otherH < 1 {
+		otherH = 1
 		focusH = avail - otherH
+	}
+	if focusH < 1 {
+		focusH = 1
 	}
 	// Content width inside the bordered box: Width(n).Render yields n+2 total
 	// columns (border outside), and the content area is n-4 (border 2 +

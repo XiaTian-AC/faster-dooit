@@ -797,3 +797,74 @@ func TestExpandedDescriptionContinuationScrollbarAndHighlight(t *testing.T) {
 		}
 	}
 }
+
+// TestDualPaneBordersFitHeight: in dual-pane layout, the pane borders must not
+// extend past the terminal height. With H rows, the rendered output must be at
+// most H lines (borders count), and scrolling must kick in before overflow.
+func TestDualPaneBordersFitHeight(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	// Enough todos that scrolling is needed if the viewport were correct.
+	for i := 0; i < 20; i++ {
+		todo := &model.Todo{Description: "item", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID}
+		if err := m.store.SaveTodo(todo); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	m.width, m.height = 150, 14
+	if m.layoutMode() != layoutNormal {
+		t.Fatalf("expected dual-pane, got %v", m.layoutMode())
+	}
+	v := m.View()
+	lines := strings.Split(v, "\n")
+	if len(lines) > m.height {
+		t.Fatalf("dual-pane output has %d lines, terminal height %d — borders overflow", len(lines), m.height)
+	}
+	// Move the cursor to the last todo so scrolling kicks in.
+	for i := 0; i < 20; i++ {
+		m.actionMoveDown(m)
+	}
+	v = m.View()
+	if m.todoScroll == 0 {
+		t.Fatalf("todoScroll should be > 0 with 21 todos and cursor at the end, got 0")
+	}
+	// The selected (highlighted) row must still be visible and inside the
+	// terminal height after scrolling.
+	selLine := -1
+	for i, ln := range strings.Split(v, "\n") {
+		if strings.Contains(ln, "\x1b[48;2;") {
+			selLine = i
+		}
+	}
+	if selLine < 0 || selLine >= m.height {
+		t.Fatalf("selected row at line %d, want inside [0,%d)", selLine, m.height)
+	}
+}
+
+// TestStackedBordersFitHeight: stacked layout must also keep pane borders
+// within the terminal height.
+func TestStackedBordersFitHeight(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	for i := 0; i < 15; i++ {
+		todo := &model.Todo{Description: "item", Pending: true, ParentWorkspaceID: &m.selectedWorkspace().ID}
+		if err := m.store.SaveTodo(todo); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	m.width, m.height = 80, 14
+	if m.layoutMode() != layoutStacked {
+		t.Fatalf("expected stacked, got %v", m.layoutMode())
+	}
+	v := m.View()
+	lines := strings.Split(v, "\n")
+	if len(lines) > m.height {
+		t.Fatalf("stacked output has %d lines, terminal height %d — borders overflow", len(lines), m.height)
+	}
+}
