@@ -59,8 +59,8 @@ func TestCallFormatterReturnsText(t *testing.T) {
 
 func TestCallFormatterReturnsStyle(t *testing.T) {
 	rt, err := EvalFileWithCode(`
-api.vars.theme.red = "#FF0000"
-api.formatter.todos.description.add(function(desc, model, theme)
+theme.red = "#FF0000"
+formatter.todos.description.add(function(desc, model, theme)
   return { text = desc, style = theme.red }
 end)
 `)
@@ -95,7 +95,7 @@ func TestMinSizeDefaultsAndOverride(t *testing.T) {
 		t.Fatalf("defaults = %d/%d, want 40/12", rt.MinWidth, rt.MinHeight)
 	}
 
-	rt2, err := EvalFileWithCode(`api.vars.min_width = 60`)
+	rt2, err := EvalFileWithCode(`vars.min_width = 60`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestMinSizeDefaultsAndOverride(t *testing.T) {
 
 func TestSandboxNoOS(t *testing.T) {
 	// os library must not be available to config scripts.
-	_, err := EvalFileWithCode(`api.keys.set("j", "move_down"); return os.execute("echo hi")`)
+	_, err := EvalFileWithCode(`keys.set("j", "move_down"); return os.execute("echo hi")`)
 	if err == nil {
 		t.Error("expected os.execute to fail in sandboxed config")
 	}
@@ -155,17 +155,17 @@ func TestFormattersRegisteredPerField(t *testing.T) {
 	check("recurrence", rt.Formatters.Todos.Recurrence)
 }
 
-func TestApiNotifyRegistered(t *testing.T) {
-	// api.notify must exist and be callable without crashing.
-	rt, err := EvalFileWithCode(`api.notify("hello", "info")`)
+func TestNotifyRegistered(t *testing.T) {
+	// notify must exist and be callable without crashing.
+	rt, err := EvalFileWithCode(`notify("hello", "info")`)
 	if err != nil {
-		t.Fatalf("api.notify errored: %v", err)
+		t.Fatalf("notify errored: %v", err)
 	}
 	rt.Close()
 }
 
 func TestKeysSetArray(t *testing.T) {
-	rt, err := EvalFileWithCode(`api.keys.set({"j","k"}, api.move_down)`)
+	rt, err := EvalFileWithCode(`keys.set({"j","k"}, move_down)`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestKeysSetArray(t *testing.T) {
 }
 
 func TestThemeNameLoaded(t *testing.T) {
-	rt, err := EvalFileWithCode(`api.vars.theme.name = "dracula"`)
+	rt, err := EvalFileWithCode(`theme.name = "dracula"`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,9 +196,9 @@ func TestThemeNameDefaultsNord(t *testing.T) {
 
 func TestThemeExplicitTracksOverrides(t *testing.T) {
 	rt, err := EvalFileWithCode(`
-api.vars.theme.name = "dracula"
-api.vars.theme.primary = "#FF0000"
-api.vars.theme.dim = "#555555"
+theme.name = "dracula"
+theme.primary = "#FF0000"
+theme.dim = "#555555"
 `)
 	if err != nil {
 		t.Fatal(err)
@@ -215,13 +215,13 @@ api.vars.theme.dim = "#555555"
 }
 
 func TestThemeUnknownNameErrors(t *testing.T) {
-	if _, err := EvalFileWithCode(`api.vars.theme.name = "bogus"`); err == nil {
+	if _, err := EvalFileWithCode(`theme.name = "bogus"`); err == nil {
 		t.Fatal("unknown theme name must error")
 	}
 }
 
 func TestCollapseDepthLoaded(t *testing.T) {
-	rt, err := EvalFileWithCode(`api.vars.collapse_depth = 2`)
+	rt, err := EvalFileWithCode(`vars.collapse_depth = 2`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,5 +237,11 @@ func TestCollapseDepthDefaultsZero(t *testing.T) {
 	}
 	if rt.CollapseDepth != 0 {
 		t.Fatalf("collapse_depth default = %d, want 0", rt.CollapseDepth)
+	}
+}
+
+func TestOldAPISyntaxRejected(t *testing.T) {
+	if _, err := EvalFileWithCode(`api.vars.theme.name = "nord"`); err == nil {
+		t.Fatal("old api.* syntax must be rejected (no backward compat)")
 	}
 }

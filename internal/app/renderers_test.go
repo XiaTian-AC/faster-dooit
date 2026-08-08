@@ -99,8 +99,8 @@ func TestAppThemeOverrideApplied(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := lua.EvalFileWithCode(`
-api.vars.theme.name = "dracula"
-api.vars.theme.primary = "#123456"
+theme.name = "dracula"
+theme.primary = "#123456"
 `)
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ api.vars.theme.primary = "#123456"
 func TestDescriptionUsesThemeColor(t *testing.T) {
 	// Force 24-bit color output (no TTY in tests) so ANSI assertions work.
 	lipgloss.SetColorProfile(termenv.TrueColor)
-	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "catppuccin_latte"`)
+	rt, err := lua.EvalFileWithCode(`theme.name = "catppuccin_latte"`)
 	if err != nil {
 		t.Fatal(err)
 	}

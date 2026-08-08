@@ -130,7 +130,7 @@ func TestResizeCmdEachDirection(t *testing.T) {
 	}
 }
 
-// TestSlashForcesRefresh: the "/" key (bound to api.redraw by default) must
+// TestSlashForcesRefresh: the "/" key (bound to redraw by default) must
 // bump the render version and trigger a terminal-size poll — a manual redraw
 // for terminals that don't report resizes.
 func TestSlashForcesRefresh(t *testing.T) {

@@ -1,9 +1,10 @@
-// Package lua evaluates the config.lua file and exposes the `api` table
-// that mirrors the dooit configuration surface.
+// Package lua evaluates the config.lua file and exposes the configuration
+// surface as bare Lua globals (keys / layouts / formatter / bar / dashboard /
+// theme / vars / notify / now).
 //
 // The Lua surface is a deliberately closed subset of the original Python
 // API: keys / layouts / formatter / bar / dashboard / subscribe / timer /
-// vars.theme / notify. It is NOT equivalent to the full dooit Python API
+// theme / vars / notify. It is NOT equivalent to the full dooit Python API
 // (no api.css, no plugin_manager) — the README documents this honestly.
 package lua
 
@@ -17,7 +18,7 @@ import (
 	"github.com/XiaTian-AC/faster-dooit/internal/theme"
 )
 
-// Theme carries the color palette read from api.vars.theme.
+// Theme carries the color palette read from the theme global.
 type Theme struct {
 	Primary     string
 	Secondary   string
@@ -34,7 +35,7 @@ type Theme struct {
 	BorderUnfocused string
 
 	// UrgencyColors maps urgency levels 1..5 to colors, read from
-	// api.vars.urgency_colors (index 0 = urgency 1).
+	// vars.urgency_colors (index 0 = urgency 1).
 	UrgencyColors []string
 
 	// Name is the selected preset ("nord" by default). Explicit records the
@@ -99,21 +100,21 @@ type Runtime struct {
 	Timers      []Timer
 
 	// MinWidth/MinHeight are the minimum terminal size for the UI, from
-	// api.vars.min_width / api.vars.min_height (defaults 40/12).
+	// vars.min_width / vars.min_height (defaults 40/12).
 	MinWidth  int
 	MinHeight int
 
 	// CollapseDepth is the default tree-collapse depth from
-	// api.vars.collapse_depth (default 0 = everything expanded).
+	// vars.collapse_depth (default 0 = everything expanded).
 	CollapseDepth int
 
-	themeTable *lua.LTable // reference to api.vars.theme for readTheme
-	varsTable  *lua.LTable // reference to api.vars for readTheme
+	themeTable *lua.LTable // reference to the theme global for readTheme
+	varsTable  *lua.LTable // reference to the vars global for readTheme
 	explicit   map[string]string // recorded by the theme __newindex metatable
 }
 
-// actionNames are the string constants exposed on the api table (so
-// config.lua can write keys.set("j", api.move_down)).
+// actionNames are the string constants exposed as bare globals (so
+// config.lua can write keys.set("j", move_down)).
 var actionNames = []string{
 	"move_down", "move_up", "go_to_top", "go_to_bottom",
 	"add_sibling", "add_child", "delete", "toggle_complete",
@@ -189,21 +190,21 @@ func newSandboxedState() *lua.LState {
 	return L
 }
 
-// installAPI builds the global `api` table and the subscribe/timer globals.
+// installAPI builds the bare-global config surface: keys / layouts /
+// formatter / bar / dashboard / theme / vars / notify / now and the action
+// name constants. subscribe and timer are also globals.
 func (rt *Runtime) installAPI(L *lua.LState) {
-	api := L.NewTable()
-
 	// keys.set(key|table, action)
 	keys := L.NewTable()
 	L.SetField(keys, "set", L.NewFunction(rt.keysSet))
-	L.SetField(api, "keys", keys)
+	L.SetGlobal("keys", keys)
 
 	// layouts.<name> = {cols} — intercepted via __newindex
 	layouts := L.NewTable()
 	layoutsMT := L.NewTable()
 	L.SetField(layoutsMT, "__newindex", L.NewFunction(rt.layoutsNewIndex))
 	L.SetMetatable(layouts, layoutsMT)
-	L.SetField(api, "layouts", layouts)
+	L.SetGlobal("layouts", layouts)
 
 	// formatter.todos.<field>.add(fn)
 	formatter := L.NewTable()
@@ -214,42 +215,41 @@ func (rt *Runtime) installAPI(L *lua.LState) {
 		L.SetField(todosFmt, field, ft)
 	}
 	L.SetField(formatter, "todos", todosFmt)
-	L.SetField(api, "formatter", formatter)
+	L.SetGlobal("formatter", formatter)
 
 	// bar.set({...})
 	bar := L.NewTable()
 	L.SetField(bar, "set", L.NewFunction(rt.barSet))
-	L.SetField(api, "bar", bar)
+	L.SetGlobal("bar", bar)
 
 	// dashboard.set({...})
 	dashboard := L.NewTable()
 	L.SetField(dashboard, "set", L.NewFunction(rt.dashboardSet))
-	L.SetField(api, "dashboard", dashboard)
+	L.SetGlobal("dashboard", dashboard)
 
-	// vars.theme + vars.urgency_colors
-	vars := L.NewTable()
+	// theme holds the color fields; vars holds urgency_colors,
+	// collapse_depth, min_width and min_height.
 	theme := L.NewTable()
 	themeMT := L.NewTable()
 	L.SetField(themeMT, "__newindex", L.NewFunction(rt.themeNewIndex))
 	L.SetMetatable(theme, themeMT)
-	L.SetField(vars, "theme", theme)
-	L.SetField(api, "vars", vars)
+	L.SetGlobal("theme", theme)
+	vars := L.NewTable()
+	L.SetGlobal("vars", vars)
 	rt.themeTable = theme
 	rt.varsTable = vars
 	rt.explicit = map[string]string{}
 
-	// Action name constants: api.move_down == "move_down", etc.
+	// Action name constants as bare globals: move_down == "move_down", etc.
 	for _, name := range actionNames {
-		L.SetField(api, name, lua.LString(name))
+		L.SetGlobal(name, lua.LString(name))
 	}
 
 	// notify(message, level) — records a pending notification message.
-	L.SetField(api, "notify", L.NewFunction(rt.apiNotify))
+	L.SetGlobal("notify", L.NewFunction(rt.apiNotify))
 
 	// now(format) — current local time formatted with Lua strftime tokens.
-	L.SetField(api, "now", L.NewFunction(rt.nowFn))
-
-	L.SetGlobal("api", api)
+	L.SetGlobal("now", L.NewFunction(rt.nowFn))
 
 	// Global functions.
 	L.SetGlobal("subscribe", L.NewFunction(rt.subscribe))
@@ -258,7 +258,7 @@ func (rt *Runtime) installAPI(L *lua.LState) {
 
 var formatterFields = []string{"status", "description", "due", "urgency", "effort", "recurrence"}
 
-// keysSet implements api.keys.set(key, action). key may be a string or an
+// keysSet implements keys.set(key, action). key may be a string or an
 // array of strings (multiple keys bound to one action).
 func (rt *Runtime) keysSet(L *lua.LState) int {
 	action := L.CheckString(2)
@@ -275,7 +275,7 @@ func (rt *Runtime) keysSet(L *lua.LState) int {
 	return 0
 }
 
-// layoutsNewIndex captures api.layouts.<name> = {col, ...}.
+// layoutsNewIndex captures layouts.<name> = {col, ...}.
 func (rt *Runtime) layoutsNewIndex(L *lua.LState) int {
 	name := L.CheckString(2)
 	tbl, ok := L.Get(3).(*lua.LTable)
@@ -289,9 +289,9 @@ func (rt *Runtime) layoutsNewIndex(L *lua.LState) int {
 		}
 	})
 	switch name {
-	case "workspace_layout":
+	case "workspace":
 		rt.Layouts.Workspace = cols
-	case "todo_layout":
+	case "todo":
 		rt.Layouts.Todo = cols
 	}
 	return 0
@@ -324,7 +324,7 @@ func (rt *Runtime) formatterAdd(field string) lua.LGFunction {
 	}
 }
 
-// barSet implements api.bar.set({fn, fn, ...}).
+// barSet implements bar.set({fn, fn, ...}).
 func (rt *Runtime) barSet(L *lua.LState) int {
 	tbl, ok := L.Get(1).(*lua.LTable)
 	if !ok {
@@ -341,7 +341,7 @@ func (rt *Runtime) barSet(L *lua.LState) int {
 	return 0
 }
 
-// dashboardSet implements api.dashboard.set({line, ...}).
+// dashboardSet implements dashboard.set({line, ...}).
 func (rt *Runtime) dashboardSet(L *lua.LState) int {
 	tbl, ok := L.Get(1).(*lua.LTable)
 	if !ok {
@@ -356,13 +356,13 @@ func (rt *Runtime) dashboardSet(L *lua.LState) int {
 	return 0
 }
 
-// apiNotify implements api.notify(message, level) — records the message so
+// apiNotify implements notify(message, level) — records the message so
 // the app can show it. Returns no value (the message is read from Runtime).
 func (rt *Runtime) apiNotify(L *lua.LState) int {
 	return 0
 }
 
-// nowFn implements api.now(format) — the current local time formatted with
+// nowFn implements now(format) — the current local time formatted with
 // Lua strftime tokens (a sandbox-safe replacement for os.date).
 func (rt *Runtime) nowFn(L *lua.LState) int {
 	format := L.OptString(1, "%Y-%m-%d %H:%M:%S")
@@ -407,7 +407,7 @@ func (rt *Runtime) timer(L *lua.LState) int {
 	return 0
 }
 
-// themeNewIndex intercepts api.vars.theme.<field> = value. It records string
+// themeNewIndex intercepts theme.<field> = value. It records string
 // color assignments (so readTheme knows which fields were explicitly set) and
 // stores the value in the table. Non-string values are ignored for overrides.
 func (rt *Runtime) themeNewIndex(L *lua.LState) int {
@@ -420,9 +420,8 @@ func (rt *Runtime) themeNewIndex(L *lua.LState) int {
 	return 0
 }
 
-// readTheme copies color values out of api.vars.theme and
-// api.vars.urgency_colors after eval. name defaults to "nord"; an unknown
-// name is a config error.
+// readTheme copies color values out of the theme and vars globals after
+// eval. name defaults to "nord"; an unknown name is a config error.
 func (rt *Runtime) readTheme() error {
 	L := rt.L
 	get := func(k string) string {
@@ -455,7 +454,7 @@ func (rt *Runtime) readTheme() error {
 		rt.Theme.Name = "nord"
 	}
 
-	// api.vars.urgency_colors = { "#A3BE8C", ... } — a 1-based Lua array.
+	// vars.urgency_colors = { "#A3BE8C", ... } — a 1-based Lua array.
 	if rt.varsTable != nil {
 		if uc, ok := L.GetField(rt.varsTable, "urgency_colors").(*lua.LTable); ok {
 			var colors []string
@@ -470,7 +469,7 @@ func (rt *Runtime) readTheme() error {
 		}
 	}
 
-	// api.vars.min_width / api.vars.min_height (numeric).
+	// vars.min_width / vars.min_height (numeric).
 	if rt.varsTable != nil {
 		if n, ok := L.GetField(rt.varsTable, "min_width").(lua.LNumber); ok {
 			rt.MinWidth = int(n)

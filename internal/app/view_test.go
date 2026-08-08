@@ -131,7 +131,7 @@ func TestLayoutModeMinSizeBoundaries(t *testing.T) {
 		t.Fatalf("40x11 should be too small, got %v", m.layoutMode())
 	}
 	// Config override: min_width=60 makes 50x30 too small.
-	rt, err := lua.EvalFileWithCode(`api.vars.min_width = 60`)
+	rt, err := lua.EvalFileWithCode(`vars.min_width = 60`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,7 +452,7 @@ func TestFillBackgroundTransparentFromConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt, err := lua.EvalFileWithCode(`api.vars.theme.background = "transparent"`)
+	rt, err := lua.EvalFileWithCode(`theme.background = "transparent"`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -515,7 +515,7 @@ func TestScrollbarHiddenWhenFits(t *testing.T) {
 // with a primary-colored thumb on row contentThumb+1 (row 0 is the title).
 func TestScrollbarColumnRendersThumb(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
-	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "nord"`)
+	rt, err := 	lua.EvalFileWithCode(`theme.name = "nord"`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,7 +544,7 @@ func TestScrollbarColumnRendersThumb(t *testing.T) {
 // must not be eaten by the title row or the last-content-row offset bug.
 func TestScrollbarFirstAndLastThumbVisible(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
-	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "nord"`)
+	rt, err := 	lua.EvalFileWithCode(`theme.name = "nord"`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -573,7 +573,7 @@ func TestScrollbarFirstAndLastThumbVisible(t *testing.T) {
 // indentation must not pull the scrollbar inward).
 func TestAppendScrollbarPadsToEdge(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
-	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "nord"`)
+	rt, err := 	lua.EvalFileWithCode(`theme.name = "nord"`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -666,7 +666,7 @@ func TestScrollbarThumbVisibleAtEnds(t *testing.T) {
 // the thumb a primary solid block (█), giving a light-track/dark-thumb look.
 func TestScrollbarTrackHalfBlock(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
-	rt, err := lua.EvalFileWithCode(`api.vars.theme.name = "nord"`)
+	rt, err := 	lua.EvalFileWithCode(`theme.name = "nord"`)
 	if err != nil {
 		t.Fatal(err)
 	}
