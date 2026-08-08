@@ -384,15 +384,17 @@ func (m *Model) DashboardLines() []string {
 	return []string{"Welcome to Faster Dooit!", "", "Press '?' for help."}
 }
 
-// renderExpandArrow appends ▸ (collapsed) or ▾ (expanded) to a row when the
-// node has children. Leaf nodes get no arrow.
-func (m *Model) renderExpandArrow(row string, hasChildren, expanded bool) string {
+// renderRowMarker returns the leading marker slot for a row: the fold arrow
+// for collapsible nodes, blank for leaves. Collapsed nodes show ">", expanded
+// nodes show "▾" (a downward-pointing caret). Selection is conveyed by the row
+// highlight, not by a cursor arrow here.
+func (m *Model) renderRowMarker(hasChildren, expanded bool) string {
 	if !hasChildren {
-		return row
+		return "  "
 	}
-	arrow := "▸"
+	ch := ">"
 	if expanded {
-		arrow = "▾"
+		ch = "▾"
 	}
-	return row + m.appTheme().Style("primary").Render(" " + arrow)
+	return m.appTheme().Style("primary").Render(ch + " ")
 }

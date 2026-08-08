@@ -145,19 +145,19 @@ func TestDescriptionUsesThemeColor(t *testing.T) {
 }
 
 
-func TestRenderExpandArrow(t *testing.T) {
+func TestRenderRowMarker(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	m := newTestApp(t)
-	no := m.renderExpandArrow("abc", false, false)
-	if strings.Contains(no, "▸") || strings.Contains(no, "▾") {
-		t.Fatalf("leaf node must not get an arrow, got %q", no)
+	// Leaf node: blank marker.
+	if got := m.renderRowMarker(false, false); got != "  " {
+		t.Fatalf("leaf marker = %q, want blank", got)
 	}
-	collapsed := m.renderExpandArrow("abc", true, false)
-	if !strings.Contains(collapsed, "▸") {
-		t.Fatalf("collapsed node should show ▸, got %q", collapsed)
+	// Collapsed with children: ">".
+	if got := stripANSI(m.renderRowMarker(true, false)); got != "> " {
+		t.Fatalf("collapsed marker = %q, want \"> \"", got)
 	}
-	expanded := m.renderExpandArrow("abc", true, true)
-	if !strings.Contains(expanded, "▾") {
-		t.Fatalf("expanded node should show ▾, got %q", expanded)
+	// Expanded with children: "▾".
+	if got := stripANSI(m.renderRowMarker(true, true)); got != "▾ " {
+		t.Fatalf("expanded marker = %q, want \"▾ \"", got)
 	}
 }

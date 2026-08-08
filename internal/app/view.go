@@ -352,10 +352,9 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 	lines = append(lines, title)
 	for i := lo; i < hi; i++ {
 		selected := i == m.WorkspaceCursor && m.focus == PaneWorkspace
-		marker := "  "
-		if selected {
-			marker = th.Style("green").Render("> ")
-		}
+		// The marker slot shows the fold state for collapsible nodes.
+		expanded := m.isExpanded(ws[i].ID, ws[i].NestLevel())
+		marker := m.renderRowMarker(len(ws[i].Children) > 0, expanded)
 		// indent before marker so the cursor aligns with the row's text column.
 		indent := strings.Repeat("  ", ws[i].NestLevel())
 		// Inline edit: the focused row renders the text input instead of the row.
@@ -368,15 +367,9 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 			continue
 		}
 		row := indent + marker + m.RenderRow(PaneWorkspace, i)
-		hasChildren := len(ws[i].Children) > 0
 		if selected {
-			selW := contentW
-			if hasChildren {
-				selW = contentW - expandArrowW
-			}
-			row = m.renderSelectedRow(row, selW)
+			row = m.renderSelectedRow(row, contentW)
 		}
-		row = m.renderExpandArrow(row, hasChildren, m.isExpanded(ws[i].ID, ws[i].NestLevel()))
 		if hasScrollbar {
 			row = m.appendScrollbar(row, contentW, contentRows, thumb, i-lo)
 		}
@@ -445,8 +438,9 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 	if hasScrollbar {
 		contentW = w - 1
 	}
-	// Arrow width reserved at the row tail for the expand/collapse indicator.
-	budget := contentW - markerW - maxIndent*2 - expandArrowW
+	// The marker slot (markerW columns) holds the fold arrow for collapsible
+	// nodes, so no extra width is needed for it.
+	budget := contentW - markerW - maxIndent*2
 	if budget < 8 {
 		budget = 8
 	}
@@ -473,10 +467,11 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 	lines = append(lines, title)
 	for i := lo; i < hi; i++ {
 		selected := i == m.TodoCursor && m.focus == PaneTodo
-		marker := "  "
-		if selected {
-			marker = th.Style("green").Render("> ")
-		}
+		// The marker slot shows the fold state for collapsible nodes:
+		// ">" when collapsed, "▾" when expanded, blank for leaves. The
+		// selected row is identified by its highlight, not a cursor arrow.
+		expanded := m.isExpanded(todos[i].ID, todos[i].NestLevel())
+		marker := m.renderRowMarker(len(todos[i].Todos) > 0, expanded)
 		// indent before marker so the cursor aligns with the row's text column.
 		indent := strings.Repeat("  ", todos[i].NestLevel())
 		// Inline edit: the whole row becomes the text input (full width), so
@@ -490,16 +485,9 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 			continue
 		}
 		row := indent + marker + m.formatTodoAligned(todos[i], cols, widths)
-		hasChildren := len(todos[i].Todos) > 0
 		if selected {
-			// Reserve the arrow width only when the node actually renders one.
-			selW := contentW
-			if hasChildren {
-				selW = contentW - expandArrowW
-			}
-			row = m.renderSelectedRow(row, selW)
+			row = m.renderSelectedRow(row, contentW)
 		}
-		row = m.renderExpandArrow(row, hasChildren, m.isExpanded(todos[i].ID, todos[i].NestLevel()))
 		if hasScrollbar {
 			row = m.appendScrollbar(row, contentW, contentRows, thumb, i-lo)
 		}
@@ -562,10 +550,6 @@ func max(a, b int) int {
 	}
 	return b
 }
-
-// expandArrowW is the display width of the expand/collapse arrow (" ▸" / " ▾").
-// Reserved in pane width budgets and row padding so arrows never overflow.
-const expandArrowW = 2
 
 // scrollbarThumb returns the content row (0..contentRows-1) the scrollbar
 // thumb sits on for total items, contentRows visible content rows (title

@@ -98,9 +98,9 @@ func TestSelectedRowHighlighted(t *testing.T) {
 	m.SetFocus(PaneTodo)
 	m.TodoCursor = 0
 
-	// The selected row carries a background ANSI code, the cursor arrow, and is
-	// padded to the pane width.
-	sel := m.renderSelectedRow("> abc", 20)
+	// The selected row carries a background ANSI code and is padded to the
+	// pane width. Selection is shown by the highlight, not a cursor arrow.
+	sel := m.renderSelectedRow("abc", 20)
 	if !strings.Contains(sel, "\x1b[48;2;") {
 		t.Fatalf("selected row should carry a background highlight, got %q", sel)
 	}
@@ -108,17 +108,14 @@ func TestSelectedRowHighlighted(t *testing.T) {
 	v := m.renderTodoPane(20)
 	found := false
 	for _, line := range strings.Split(v, "\n") {
-		if strings.Contains(line, "> ") {
+		if strings.Contains(line, "\x1b[48;2;") {
 			found = true
-			if !strings.Contains(line, "\x1b[48;2;") {
-				t.Fatalf("highlighted row should carry a background, got %q", line)
-			}
 			if lipgloss.Width(line) < 20 {
 				t.Fatalf("highlighted row should span the pane width, got %d cols", lipgloss.Width(line))
 			}
 		}
 	}
 	if !found {
-		t.Fatalf("cursor arrow should be present on the selected row:\n%s", v)
+		t.Fatalf("a highlighted row should be present:\n%s", v)
 	}
 }

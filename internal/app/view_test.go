@@ -25,12 +25,14 @@ func TestCursorAlignsWithIndent(t *testing.T) {
 	if err := m.RefreshFromStore(); err != nil {
 		t.Fatal(err)
 	}
-	// Cursor on the nested child row (index 1); its marker must sit after the
-	// indent (2 spaces for level 1).
+	// Expand the root so the child is visible.
+	m.expanded[root.ID] = true
+	// Cursor on the nested child row (index 1); it must be indented by the
+	// child's nest level (2 spaces per level for level 1).
 	m.TodoCursor = 1
 	v := m.renderTodoPane(80)
-	if !strings.Contains(stripANSI(v), "  > ") {
-		t.Fatalf("cursor should align with nested indent, got:\n%s", v)
+	if !strings.Contains(stripANSI(v), "    o") {
+		t.Fatalf("child should align with nested indent, got:\n%s", v)
 	}
 }
 
@@ -273,24 +275,25 @@ func TestViewportScrollKeepsCursorVisible(t *testing.T) {
 	if !found {
 		t.Fatalf("Todos title missing:\n%s", v)
 	}
-	// The cursor row ("> ") must be rendered somewhere after the Todos title.
-	// With 9 todos and a small viewport, it must have scrolled the window down
-	// (the first item rows are hidden) but the cursor row is still visible.
+	// The selected row (highlighted background) must be rendered somewhere
+	// after the Todos title. With 9 todos and a small viewport, it must have
+	// scrolled the window down (the first item rows are hidden) but the
+	// selected row is still visible.
 	todoIdx := -1
-	cursorLine := -1
+	selLine := -1
 	for i, ln := range lines {
 		if strings.Contains(ln, "Todos") {
 			todoIdx = i
 		}
-		if strings.Contains(ln, "> ") {
-			cursorLine = i
+		if strings.Contains(ln, "\x1b[48;2;") {
+			selLine = i
 		}
 	}
-	if todoIdx < 0 || cursorLine < 0 {
-		t.Fatalf("cursor row not visible after scroll:\n%s", v)
+	if todoIdx < 0 || selLine < 0 {
+		t.Fatalf("selected row not visible after scroll:\n%s", v)
 	}
-	if cursorLine <= todoIdx {
-		t.Fatalf("cursor should render below the Todos title, cursorLine=%d todoIdx=%d", cursorLine, todoIdx)
+	if selLine <= todoIdx {
+		t.Fatalf("selected row should render below the Todos title, selLine=%d todoIdx=%d", selLine, todoIdx)
 	}
 	// At least one todo must have scrolled off (we have 9 todos; the visible
 	// todo area is much smaller), i.e. the first todo row is not line 0.
@@ -350,22 +353,23 @@ func TestDualPaneScrollsOnShortTerminal(t *testing.T) {
 	if m.layoutMode() != layoutNormal {
 		t.Fatalf("expected dual-pane layout, got %v", m.layoutMode())
 	}
-	// Cursor row must be visible somewhere after the Todos title.
+	// Selected row (highlighted) must be visible somewhere after the Todos
+	// title.
 	todoIdx := -1
-	cursorLine := -1
+	selLine := -1
 	for i, ln := range strings.Split(v, "\n") {
 		if strings.Contains(ln, "Todos") {
 			todoIdx = i
 		}
-		if strings.Contains(ln, "> ") {
-			cursorLine = i
+		if strings.Contains(ln, "\x1b[48;2;") {
+			selLine = i
 		}
 	}
-	if todoIdx < 0 || cursorLine < 0 {
-		t.Fatalf("cursor row not visible in dual-pane scroll:\n%s", v)
+	if todoIdx < 0 || selLine < 0 {
+		t.Fatalf("selected row not visible in dual-pane scroll:\n%s", v)
 	}
-	if cursorLine <= todoIdx {
-		t.Fatalf("cursor should render below the Todos title, cursorLine=%d todoIdx=%d", cursorLine, todoIdx)
+	if selLine <= todoIdx {
+		t.Fatalf("selected row should render below the Todos title, selLine=%d todoIdx=%d", selLine, todoIdx)
 	}
 }
 
@@ -685,4 +689,47 @@ func TestScrollbarTrackHalfBlock(t *testing.T) {
 	if !strings.Contains(stripANSI(rows[2]), "█") {
 		t.Fatalf("thumb row should use solid block, got %q", stripANSI(rows[2]))
 	}
+}
+
+// TestRowMarkerShowsFoldState: a collapsible row renders its fold arrow in the
+// marker slot at the row start; a leaf row renders a blank marker.
+func TestRowMarkerShowsFoldState(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	root := m.selectedTodo()
+	child := &model.Todo{Description: "child", Pending: true, ParentTodoID: &root.ID}
+	root.Todos = append(root.Todos, child)
+	if err := m.store.SaveTodo(child); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	// Expanded root: marker shows ▾ at the row start.
+	m.expanded[root.ID] = true
+	v := m.renderTodoPane(60)
+	lines := strings.Split(v, "\n")
+	rootLine := ""
+	for _, ln := range lines {
+		if strings.Contains(stripANSI(ln), "o a") {
+			rootLine = stripANSI(ln)
+			break
+		}
+	}
+	if rootLine == "" || !strings.HasPrefix(rootLine, "▾ ") {
+		t.Fatalf("expanded root should start with ▾ marker, got %q", rootLine)
+	}
+	// Collapsed root: marker shows > at the row start.
+	m.expanded[root.ID] = false
+	v = m.renderTodoPane(60)
+	for _, ln := range strings.Split(v, "\n") {
+		if strings.Contains(stripANSI(ln), "o a") {
+			if !strings.HasPrefix(stripANSI(ln), "> ") {
+				t.Fatalf("collapsed root should start with > marker, got %q", stripANSI(ln))
+			}
+			return
+		}
+	}
+	t.Fatal("root row not found after collapse")
 }
