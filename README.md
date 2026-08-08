@@ -5,7 +5,6 @@
 </div>
 
 <h1 align="center">faster-dooit</h1>
-<!-- BEAUTIFIED -->
 
 <p align="center">
   <strong>Your todo app takes two seconds to open. This one doesn't.</strong>
@@ -35,9 +34,9 @@ Your todo tool shouldn't make you wait. The original dooit pays **1.9 s** cold-s
 
 - ⚡ **Fast enough to feel instant** — 10k todos cold-load in ~34 ms; the original takes ~1.9 s on the same machine
 - 🎯 **vim muscle memory** — `j`/`k` move, `a` adds, `d 3d` sets a due date, `c` completes
-- 🗂️ **Two-pane tree** — nested workspaces + todos, folding (`z`/`Z`), completion cascades, natural-language dates, recurrence
+- 🗂️ **Two-pane tree with folding** — nested workspaces + todos, `z`/`Z` to collapse, `collapse_depth` to auto-fold deep nodes
 - 🎨 **Themes that actually fit** — 7 built-in presets (`nord`, `dracula`, `catppuccin_mocha`…) plus per-color overrides and transparent backgrounds
-- 🔌 **Lua config** — remap keys, style columns, build a custom status bar — everything in `config.lua`
+- 🔌 **Clean Lua config** — no `api.` prefix: `theme.name`, `keys.set`, `vars.urgency_colors`
 - 📦 **Single static binary** — pure Go, no CGO, no runtime, no dependency tree to audit
 
 ## Quick Start
@@ -69,15 +68,15 @@ fdooit
 
 ```text
 ┌─ Workspaces ────────────────┐  ┌─ Todos ───────────────────────────────┐
-│  Work                       │  │  o  finish release notes     @today   │
-│  Personal                   │  │  o  write the spec                    │
+│  ⌄ Work                     │  │  ⌄ o  finish release notes   @today   │
+│  > Personal                 │  │    o  write the spec                  │
 └─────────────────────────────┘  └───────────────────────────────────────┘
 ```
 
 - `a` add a todo · `A` add a child · `c` toggle complete · `d` set due (`tomorrow`, `3d`, `next monday`)
-- `o` expand/collapse a todo's full multi-line description
+- `z`/`Z` fold a node / its parent · `o` expand a long description
 - `S` search · `ctrl+s` sort · `y`/`Y` copy · `p`/`P` paste · `?` help
-- Scrollbar appears on short terminals — thumb follows your position
+- Empty columns (no due/recurrence) hide automatically; a scrollbar appears on short terminals
 
 ## Architecture
 
@@ -107,8 +106,9 @@ The performance model is three deliberate choices: **load-once** (DB read into m
 | Theme | `theme.name = "dracula"` |
 | Color override | `theme.primary = "#FF79C6"` |
 | Transparent bg | `theme.background = "transparent"` |
+| Fold depth | `vars.collapse_depth = 0` |
+| Long-description lines | `vars.max_description_lines = 3` |
 | Remap key | `keys.set("i", add_sibling)` |
-| Expanded description lines | `vars.max_description_lines = 3` (`0` = never ellipsize) |
 | Status bar | `bar.set({ fn, fn, ... })` |
 
 Built-in themes: `nord`, `catppuccin_mocha`, `catppuccin_latte`, `dracula`, `gruvbox_dark`, `solarized_light`, `tokyo_night`. Twelve overridable colors plus `urgency_colors`.
@@ -123,7 +123,8 @@ faster-dooit exposes a **Lua API** (a deliberate subset of the original Python s
 | `formatter.todos.<field>.add(fn)` | Style todo columns |
 | `bar.set({fn, ...})` | Custom status bar |
 | `dashboard.set({line, ...})` | Welcome dashboard |
-| `theme` / `vars` | Colors + presets / urgency colors, collapse depth, min size, `max_description_lines` |
+| `theme` / `vars` | Colors, presets, fold depth, max lines |
+| `notify(msg, level)` / `now(fmt)` | Feedback & time |
 | `subscribe(event, fn)` / `timer(sec, fn)` | Events & periodic callbacks |
 
 ## Directory Structure
@@ -138,6 +139,7 @@ faster-dooit/
 │   ├── lua/                 # sandboxed config.lua evaluation
 │   ├── theme/               # resolved theme + 7 built-in presets
 │   └── dateparse/           # natural-language dates ("tomorrow", "3d")
+├── install.sh / install.ps1 # one-line installers
 └── config.lua               # default user config
 ```
 

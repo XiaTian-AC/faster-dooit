@@ -24,7 +24,7 @@
   <img src="https://img.shields.io/badge/Bubble_Tea-FF6D5B?style=flat&logo=charm&logoColor=white" alt="Bubble Tea" />
 </p>
 
-> **Sin relación con el proyecto oficial [dooit](https://github.com/dooit-org/dooit)** — es un port independiente escrito desde cero. Proyecto de hobby asistido por IA.
+> **Sin relación con el proyecto oficial [dooit](https://github.com/dooit-org/dooit)** — es un port independiente escrito desde cero. Proyecto hobby asistido por IA.
 
 ## Por qué
 
@@ -32,12 +32,12 @@ Tu herramienta de tareas no debería hacerte esperar. El dooit original paga **1
 
 ## Características
 
-- ⚡ **Rápido como para sentirlo al instante** — 10k tareas se cargan en ~34 ms; el original tarda ~1.9 s en la misma máquina
+- ⚡ **Rápido como para sentirlo al instante** — 10k tareas cargadas en ~34 ms; el original tarda ~1.9 s en la misma máquina
 - 🎯 **Memoria muscular de vim** — `j`/`k` moverse, `a` añadir, `d 3d` fijar fecha, `c` completar
-- 🗂️ **Árbol de dos paneles** — workspaces y tareas anidados, cascadas de completado, fechas en lenguaje natural, recurrencia
-- 🎨 **Temas que encajan** — 7 presets (`nord`, `dracula`, `catppuccin_mocha`…) más sobreescritura de colores y fondos transparentes
-- 🔌 **Configuración Lua** — reasignar teclas, estilizar columnas, barra de estado a medida — todo en `config.lua`
-- 📦 **Un solo binario estático** — Go puro, sin CGO, sin runtime
+- 🗂️ **Árbol de dos paneles con plegado** — workspaces y tareas anidados, `z`/`Z` para plegar, `collapse_depth` para auto-plegar nodos profundos
+- 🎨 **Temas que encajan** — 7 presets (`nord`, `dracula`, `catppuccin_mocha`…) más sobrescritura de colores y fondos transparentes
+- 🔌 **Configuración Lua limpia** — sin prefijo `api.`: `theme.name`, `keys.set`, `vars.urgency_colors`
+- 📦 **Un solo binario estático** — Go puro, sin CGO, sin runtime, sin árbol de dependencias que auditar
 
 ## Inicio rápido
 
@@ -68,14 +68,15 @@ fdooit
 
 ```text
 ┌─ Workspaces ────────────────┐  ┌─ Todos ───────────────────────────────┐
-│  Work                       │  │  o  finish release notes     @today   │
-│  Personal                   │  │  o  write the spec                    │
+│  ⌄ Work                     │  │  ⌄ o  finish release notes   @today   │
+│  > Personal                 │  │    o  write the spec                  │
 └─────────────────────────────┘  └───────────────────────────────────────┘
 ```
 
 - `a` añadir tarea · `A` añadir hijo · `c` alternar completado · `d` fijar fecha (`tomorrow`, `3d`, `next monday`)
+- `z`/`Z` plegar un nodo / su padre · `o` expandir una descripción larga
 - `S` buscar · `ctrl+s` ordenar · `y`/`Y` copiar · `p`/`P` pegar · `?` ayuda
-- Barra de desplazamiento en terminales bajas — el pulgar sigue tu posición
+- Las columnas vacías (sin due/recurrence) se ocultan; la barra de desplazamiento aparece en terminales bajas
 
 ## Arquitectura
 
@@ -102,11 +103,13 @@ El modelo de rendimiento son tres decisiones deliberadas: **carga única** (DB a
 
 | Ajuste | Ejemplo |
 |---|---|
-| Tema | `api.vars.theme.name = "dracula"` |
-| Sobreescribir color | `api.vars.theme.primary = "#FF79C6"` |
-| Fondo transparente | `api.vars.theme.background = "transparent"` |
-| Reasignar tecla | `api.keys.set("i", api.add_sibling)` |
-| Barra de estado | `api.bar.set({ fn, fn, ... })` |
+| Tema | `theme.name = "dracula"` |
+| Sobrescribir color | `theme.primary = "#FF79C6"` |
+| Fondo transparente | `theme.background = "transparent"` |
+| Profundidad de plegado | `vars.collapse_depth = 0` |
+| Líneas de descripción larga | `vars.max_description_lines = 3` |
+| Reasignar tecla | `keys.set("i", add_sibling)` |
+| Barra de estado | `bar.set({ fn, fn, ... })` |
 
 Presets: `nord`, `catppuccin_mocha`, `catppuccin_latte`, `dracula`, `gruvbox_dark`, `solarized_light`, `tokyo_night`. Doce colores sobrescribibles más `urgency_colors`.
 
@@ -116,11 +119,12 @@ faster-dooit expone una **API Lua** (un subconjunto deliberado de la superficie 
 
 | API | Propósito |
 |---|---|
-| `api.keys.set(key\|{keys}, action)` | Reasignar teclas |
-| `api.formatter.todos.<field>.add(fn)` | Estilizar columnas |
-| `api.bar.set({fn, ...})` | Barra de estado a medida |
-| `api.dashboard.set({line, ...})` | Pantalla de bienvenida |
-| `api.vars.theme` | Colores + presets |
+| `keys.set(key\|{keys}, action)` | Reasignar teclas |
+| `formatter.todos.<field>.add(fn)` | Estilizar columnas |
+| `bar.set({fn, ...})` | Barra de estado a medida |
+| `dashboard.set({line, ...})` | Pantalla de bienvenida |
+| `theme` / `vars` | Colores, presets, profundidad de plegado, líneas máx |
+| `notify(msg, level)` / `now(fmt)` | Feedback y tiempo |
 | `subscribe(event, fn)` / `timer(sec, fn)` | Eventos y callbacks periódicos |
 
 ## Estructura de directorios
@@ -135,6 +139,7 @@ faster-dooit/
 │   ├── lua/                 # evaluación de config.lua en sandbox
 │   ├── theme/               # tema resuelto + 7 presets
 │   └── dateparse/           # fechas en lenguaje natural ("tomorrow", "3d")
+├── install.sh / install.ps1 # instaladores de una línea
 └── config.lua               # configuración de usuario por defecto
 ```
 

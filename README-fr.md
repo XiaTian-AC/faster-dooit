@@ -34,10 +34,10 @@ Votre outil de tâches ne devrait pas vous faire attendre. Le dooit original pai
 
 - ⚡ **Assez rapide pour sembler instantané** — 10k tâches chargées en ~34 ms ; l'original met ~1,9 s sur la même machine
 - 🎯 **Mémoire musculaire de vim** — `j`/`k` se déplacer, `a` ajouter, `d 3d` fixer une échéance, `c` terminer
-- 🗂️ **Arbre à deux volets** — workspaces et tâches imbriqués, cascades de complétion, dates en langage naturel, récurrence
+- 🗂️ **Arbre à deux volets avec pliage** — workspaces et tâches imbriqués, `z`/`Z` pour plier, `collapse_depth` pour auto-plier les nœuds profonds
 - 🎨 **Des thèmes qui collent** — 7 presets (`nord`, `dracula`, `catppuccin_mocha`…) plus surcharge de couleurs et fonds transparents
-- 🔌 **Configuration Lua** — réassigner les touches, styliser les colonnes, barre d'état sur mesure — tout dans `config.lua`
-- 📦 **Un seul binaire statique** — Go pur, sans CGO, sans runtime
+- 🔌 **Configuration Lua propre** — sans préfixe `api.` : `theme.name`, `keys.set`, `vars.urgency_colors`
+- 📦 **Un seul binaire statique** — Go pur, sans CGO, sans runtime, sans arbre de dépendances à auditer
 
 ## Démarrage rapide
 
@@ -68,14 +68,15 @@ fdooit
 
 ```text
 ┌─ Workspaces ────────────────┐  ┌─ Todos ───────────────────────────────┐
-│  Work                       │  │  o  finish release notes     @today   │
-│  Personal                   │  │  o  write the spec                    │
+│  ⌄ Work                     │  │  ⌄ o  finish release notes   @today   │
+│  > Personal                 │  │    o  write the spec                  │
 └─────────────────────────────┘  └───────────────────────────────────────┘
 ```
 
 - `a` ajouter une tâche · `A` ajouter un enfant · `c` basculer le statut · `d` fixer l'échéance (`tomorrow`, `3d`, `next monday`)
+- `z`/`Z` plier un nœud / son parent · `o` déplier une longue description
 - `S` rechercher · `ctrl+s` trier · `y`/`Y` copier · `p`/`P` coller · `?` aide
-- Barre de défilement sur les terminaux bas — le curseur suit votre position
+- Les colonnes vides (sans due/recurrence) se masquent ; une barre de défilement apparaît sur les terminaux bas
 
 ## Architecture
 
@@ -102,11 +103,13 @@ Le modèle de performance repose sur trois choix délibérés : **chargement uni
 
 | Réglage | Exemple |
 |---|---|
-| Thème | `api.vars.theme.name = "dracula"` |
-| Surcharge couleur | `api.vars.theme.primary = "#FF79C6"` |
-| Fond transparent | `api.vars.theme.background = "transparent"` |
-| Réassigner touche | `api.keys.set("i", api.add_sibling)` |
-| Barre d'état | `api.bar.set({ fn, fn, ... })` |
+| Thème | `theme.name = "dracula"` |
+| Surcharge couleur | `theme.primary = "#FF79C6"` |
+| Fond transparent | `theme.background = "transparent"` |
+| Profondeur de pliage | `vars.collapse_depth = 0` |
+| Lignes de description longue | `vars.max_description_lines = 3` |
+| Réassigner touche | `keys.set("i", add_sibling)` |
+| Barre d'état | `bar.set({ fn, fn, ... })` |
 
 Presets : `nord`, `catppuccin_mocha`, `catppuccin_latte`, `dracula`, `gruvbox_dark`, `solarized_light`, `tokyo_night`. Douze couleurs surchargables plus `urgency_colors`.
 
@@ -116,11 +119,12 @@ faster-dooit expose une **API Lua** (un sous-ensemble délibéré de la surface 
 
 | API | Objectif |
 |---|---|
-| `api.keys.set(key\|{keys}, action)` | Réassigner les touches |
-| `api.formatter.todos.<field>.add(fn)` | Styliser les colonnes |
-| `api.bar.set({fn, ...})` | Barre d'état sur mesure |
-| `api.dashboard.set({line, ...})` | Écran de bienvenue |
-| `api.vars.theme` | Couleurs + presets |
+| `keys.set(key\|{keys}, action)` | Réassigner les touches |
+| `formatter.todos.<field>.add(fn)` | Styliser les colonnes |
+| `bar.set({fn, ...})` | Barre d'état sur mesure |
+| `dashboard.set({line, ...})` | Écran de bienvenue |
+| `theme` / `vars` | Couleurs, presets, profondeur de pliage, lignes máx |
+| `notify(msg, level)` / `now(fmt)` | Feedback et temps |
 | `subscribe(event, fn)` / `timer(sec, fn)` | Événements et callbacks périodiques |
 
 ## Structure des répertoires
@@ -135,6 +139,7 @@ faster-dooit/
 │   ├── lua/                 # évaluation de config.lua en sandbox
 │   ├── theme/               # thème résolu + 7 presets
 │   └── dateparse/           # dates en langage naturel ("tomorrow", "3d")
+├── install.sh / install.ps1 # installateurs en une ligne
 └── config.lua               # configuration utilisateur par défaut
 ```
 

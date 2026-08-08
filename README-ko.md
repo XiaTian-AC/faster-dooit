@@ -34,10 +34,10 @@
 
 - ⚡ **즉각적으로 느껴지는 속도** — 1만 개를 약 34ms로 콜드 로드 (동일 기기에서 원본 약 1.9초)
 - 🎯 **vim 근육 기억** — `j`/`k` 이동, `a` 추가, `d 3d` 마감일 설정, `c` 완료
-- 🗂️ **2-팬 트리** — 중첩 워크스페이스 + 할일, 완료 캐스케이드, 자연어 날짜, 반복
+- 🗂️ **접기 지원 2-팬 트리** — 중첩 워크스페이스 + 할일, `z`/`Z` 접기, `collapse_depth`로 깊은 노드 자동 접기
 - 🎨 **맞는 테마** — 7개 프리셋 (`nord`, `dracula`, `catppuccin_mocha`…) + 색상 오버라이드 및 투명 배경
-- 🔌 **Lua 설정** — 키 리맵, 열 스타일, 커스텀 상태바 — 전부 `config.lua`
-- 📦 **단일 정적 바이너리** — 순수 Go, CGO 없음, 런타임 없음
+- 🔌 **깔끔한 Lua 설정** — `api.` 접두사 없음: `theme.name`, `keys.set`, `vars.urgency_colors`
+- 📦 **단일 정적 바이너리** — 순수 Go, CGO 없음, 런타임 없음, 감사 불필요한 의존성 트리
 
 ## 빠른 시작
 
@@ -68,14 +68,15 @@ fdooit
 
 ```text
 ┌─ Workspaces ────────────────┐  ┌─ Todos ───────────────────────────────┐
-│  Work                       │  │  o  finish release notes     @today   │
-│  Personal                   │  │  o  write the spec                    │
+│  ⌄ Work                     │  │  ⌄ o  finish release notes   @today   │
+│  > Personal                 │  │    o  write the spec                  │
 └─────────────────────────────┘  └───────────────────────────────────────┘
 ```
 
 - `a` 할일 추가 · `A` 자식 추가 · `c` 완료 토글 · `d` 마감일 설정 (`tomorrow`, `3d`, `next monday`)
+- `z`/`Z` 노드 / 부모 접기 · `o` 긴 설명 펼치기
 - `S` 검색 · `ctrl+s` 정렬 · `y`/`Y` 복사 · `p`/`P` 붙여넣기 · `?` 도움말
-- 짧은 터미널에 스크롤바 자동 표시 — 썸이 위치를 따라감
+- 빈 열 (due/recurrence 없음) 자동 숨김; 짧은 터미널에 스크롤바 자동 표시
 
 ## 아키텍처
 
@@ -102,11 +103,13 @@ graph LR
 
 | 설정 | 예 |
 |---|---|
-| 테마 | `api.vars.theme.name = "dracula"` |
-| 색상 오버라이드 | `api.vars.theme.primary = "#FF79C6"` |
-| 투명 배경 | `api.vars.theme.background = "transparent"` |
-| 키 리맵 | `api.keys.set("i", api.add_sibling)` |
-| 상태바 | `api.bar.set({ fn, fn, ... })` |
+| 테마 | `theme.name = "dracula"` |
+| 색상 오버라이드 | `theme.primary = "#FF79C6"` |
+| 투명 배경 | `theme.background = "transparent"` |
+| 접기 깊이 | `vars.collapse_depth = 0` |
+| 긴 설명 줄 수 | `vars.max_description_lines = 3` |
+| 키 리맵 | `keys.set("i", add_sibling)` |
+| 상태바 | `bar.set({ fn, fn, ... })` |
 
 프리셋: `nord`, `catppuccin_mocha`, `catppuccin_latte`, `dracula`, `gruvbox_dark`, `solarized_light`, `tokyo_night`. 12개 오버라이드 가능 색상 + `urgency_colors`.
 
@@ -116,11 +119,12 @@ faster-dooit은 커스터마이징을 위한 **Lua API** (원본 Python API의 �
 
 | API | 용도 |
 |---|---|
-| `api.keys.set(key\|{keys}, action)` | 키 리맵 |
-| `api.formatter.todos.<field>.add(fn)` | 열 스타일 |
-| `api.bar.set({fn, ...})` | 커스텀 상태바 |
-| `api.dashboard.set({line, ...})` | 웰컴 화면 |
-| `api.vars.theme` | 색상 + 프리셋 |
+| `keys.set(key\|{keys}, action)` | 키 리맵 |
+| `formatter.todos.<field>.add(fn)` | 열 스타일 |
+| `bar.set({fn, ...})` | 커스텀 상태바 |
+| `dashboard.set({line, ...})` | 웰컴 화면 |
+| `theme` / `vars` | 색상, 프리셋, 접기 깊이, 최대 줄 수 |
+| `notify(msg, level)` / `now(fmt)` | 피드백과 시간 |
 | `subscribe(event, fn)` / `timer(sec, fn)` | 이벤트 & 주기 콜백 |
 
 ## 디렉토리 구조
@@ -135,6 +139,7 @@ faster-dooit/
 │   ├── lua/                 # 샌드박스 config.lua 평가
 │   ├── theme/               # 해석된 테마 + 7 프리셋
 │   └── dateparse/           # 자연어 날짜 ("tomorrow", "3d")
+├── install.sh / install.ps1 # 원라인 설치 스크립트
 └── config.lua               # 기본 사용자 설정
 ```
 

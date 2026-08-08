@@ -34,10 +34,10 @@ Dein TODO-Tool sollte dich nicht warten lassen. Das ursprüngliche dooit zahlt *
 
 - ⚡ **Schnell genug, um sich sofort anzufühlen** — 10k Aufgaben in ~34 ms; das Original braucht ~1,9 s auf derselben Maschine
 - 🎯 **vim-Muskelgedächtnis** — `j`/`k` bewegen, `a` hinzufügen, `d 3d` Fälligkeit, `c` abschließen
-- 🗂️ **Zweispaltiger Baum** — verschachtelte Workspaces und Aufgaben, Abschluss-Kaskaden, natürliche Sprache, Wiederholung
+- 🗂️ **Zweispaltiger Baum mit Einklappen** — verschachtelte Workspaces und Aufgaben, `z`/`Z` einklappen, `collapse_depth` für automatisches Einklappen tiefer Knoten
 - 🎨 **Themen, die passen** — 7 Presets (`nord`, `dracula`, `catppuccin_mocha`…) plus Farbüberschreibung und transparente Hintergründe
-- 🔌 **Lua-Konfiguration** — Tasten neu belegen, Spalten stylen, eigene Statusleiste — alles in `config.lua`
-- 📦 **Ein einziges statisches Binary** — reines Go, kein CGO, kein Runtime
+- 🔌 **Saubere Lua-Konfiguration** — ohne `api.`-Präfix: `theme.name`, `keys.set`, `vars.urgency_colors`
+- 📦 **Ein einziges statisches Binary** — reines Go, kein CGO, kein Runtime, kein zu prüfender Abhängigkeitsbaum
 
 ## Schnellstart
 
@@ -68,14 +68,15 @@ fdooit
 
 ```text
 ┌─ Workspaces ────────────────┐  ┌─ Todos ───────────────────────────────┐
-│  Work                       │  │  o  finish release notes     @today   │
-│  Personal                   │  │  o  write the spec                    │
+│  ⌄ Work                     │  │  ⌄ o  finish release notes   @today   │
+│  > Personal                 │  │    o  write the spec                  │
 └─────────────────────────────┘  └───────────────────────────────────────┘
 ```
 
 - `a` Aufgabe hinzufügen · `A` Kind hinzufügen · `c` Abschluss umschalten · `d` Fälligkeit (`tomorrow`, `3d`, `next monday`)
+- `z`/`Z` Knoten / Eltern einklappen · `o` lange Beschreibung aufklappen
 - `S` suchen · `ctrl+s` sortieren · `y`/`Y` kopieren · `p`/`P` einfügen · `?` Hilfe
-- Scrollbar auf niedrigen Terminals — der Daumen folgt deiner Position
+- Leere Spalten (ohne due/recurrence) werden automatisch ausgeblendet; Scrollbar auf niedrigen Terminals
 
 ## Architektur
 
@@ -102,11 +103,13 @@ Das Performance-Modell sind drei bewusste Entscheidungen: **Einmal-Laden** (DB b
 
 | Einstellung | Beispiel |
 |---|---|
-| Theme | `api.vars.theme.name = "dracula"` |
-| Farbüberschreibung | `api.vars.theme.primary = "#FF79C6"` |
-| Transparenter Hintergrund | `api.vars.theme.background = "transparent"` |
-| Taste neu belegen | `api.keys.set("i", api.add_sibling)` |
-| Statusleiste | `api.bar.set({ fn, fn, ... })` |
+| Theme | `theme.name = "dracula"` |
+| Farbüberschreibung | `theme.primary = "#FF79C6"` |
+| Transparenter Hintergrund | `theme.background = "transparent"` |
+| Einklapp-Tiefe | `vars.collapse_depth = 0` |
+| Zeilen langer Beschreibungen | `vars.max_description_lines = 3` |
+| Taste neu belegen | `keys.set("i", add_sibling)` |
+| Statusleiste | `bar.set({ fn, fn, ... })` |
 
 Presets: `nord`, `catppuccin_mocha`, `catppuccin_latte`, `dracula`, `gruvbox_dark`, `solarized_light`, `tokyo_night`. Zwölf überschreibbare Farben plus `urgency_colors`.
 
@@ -116,11 +119,12 @@ faster-dooit bietet eine **Lua-API** (eine bewusste Teilmenge der ursprüngliche
 
 | API | Zweck |
 |---|---|
-| `api.keys.set(key\|{keys}, action)` | Tasten neu belegen |
-| `api.formatter.todos.<field>.add(fn)` | Spalten stylen |
-| `api.bar.set({fn, ...})` | Eigene Statusleiste |
-| `api.dashboard.set({line, ...})` | Willkommensbildschirm |
-| `api.vars.theme` | Farben + Presets |
+| `keys.set(key\|{keys}, action)` | Tasten neu belegen |
+| `formatter.todos.<field>.add(fn)` | Spalten stylen |
+| `bar.set({fn, ...})` | Eigene Statusleiste |
+| `dashboard.set({line, ...})` | Willkommensbildschirm |
+| `theme` / `vars` | Farben, Presets, Einklapp-Tiefe, max. Zeilen |
+| `notify(msg, level)` / `now(fmt)` | Feedback & Zeit |
 | `subscribe(event, fn)` / `timer(sec, fn)` | Events & periodische Callbacks |
 
 ## Verzeichnisstruktur
@@ -135,6 +139,7 @@ faster-dooit/
 │   ├── lua/                 # Sandbox-Auswertung von config.lua
 │   ├── theme/               # aufgelöstes Theme + 7 Presets
 │   └── dateparse/           # natürliche Sprache ("tomorrow", "3d")
+├── install.sh / install.ps1 # Einzeiler-Installer
 └── config.lua               # Standard-Benutzerkonfiguration
 ```
 

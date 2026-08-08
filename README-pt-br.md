@@ -34,10 +34,10 @@ Sua ferramenta de tarefas não deveria te fazer esperar. O dooit original paga *
 
 - ⚡ **Rápido o suficiente para parecer instantâneo** — 10k tarefas em ~34 ms; o original leva ~1,9 s na mesma máquina
 - 🎯 **Memória muscular do vim** — `j`/`k` mover, `a` adicionar, `d 3d` prazo, `c` concluir
-- 🗂️ **Árvore de dois painéis** — workspaces e tarefas aninhados, cascatas de conclusão, datas em linguagem natural, recorrência
+- 🗂️ **Árvore de dois painéis com recolhimento** — workspaces e tarefas aninhados, `z`/`Z` para recolher, `collapse_depth` para auto-recolher nós profundos
 - 🎨 **Temas que encaixam** — 7 presets (`nord`, `dracula`, `catppuccin_mocha`…) mais sobrescrita de cores e fundos transparentes
-- 🔌 **Configuração Lua** — remapear teclas, estilizar colunas, barra de status personalizada — tudo em `config.lua`
-- 📦 **Um único binário estático** — Go puro, sem CGO, sem runtime
+- 🔌 **Configuração Lua limpa** — sem prefixo `api.`: `theme.name`, `keys.set`, `vars.urgency_colors`
+- 📦 **Um único binário estático** — Go puro, sem CGO, sem runtime, sem árvore de dependências para auditar
 
 ## Início rápido
 
@@ -68,14 +68,15 @@ fdooit
 
 ```text
 ┌─ Workspaces ────────────────┐  ┌─ Todos ───────────────────────────────┐
-│  Work                       │  │  o  finish release notes     @today   │
-│  Personal                   │  │  o  write the spec                    │
+│  ⌄ Work                     │  │  ⌄ o  finish release notes   @today   │
+│  > Personal                 │  │    o  write the spec                  │
 └─────────────────────────────┘  └───────────────────────────────────────┘
 ```
 
 - `a` adicionar tarefa · `A` adicionar filha · `c` alternar conclusão · `d` definir prazo (`tomorrow`, `3d`, `next monday`)
+- `z`/`Z` recolher um nó / seu pai · `o` expandir uma descrição longa
 - `S` buscar · `ctrl+s` ordenar · `y`/`Y` copiar · `p`/`P` colar · `?` ajuda
-- Barra de rolagem em terminais baixos — o polegar segue sua posição
+- Colunas vazias (sem due/recurrence) ficam ocultas; barra de rolagem em terminais baixos
 
 ## Arquitetura
 
@@ -102,11 +103,13 @@ O modelo de desempenho são três decisões deliberadas: **carga única** (banco
 
 | Configuração | Exemplo |
 |---|---|
-| Tema | `api.vars.theme.name = "dracula"` |
-| Sobrescrever cor | `api.vars.theme.primary = "#FF79C6"` |
-| Fundo transparente | `api.vars.theme.background = "transparent"` |
-| Remapear tecla | `api.keys.set("i", api.add_sibling)` |
-| Barra de status | `api.bar.set({ fn, fn, ... })` |
+| Tema | `theme.name = "dracula"` |
+| Sobrescrever cor | `theme.primary = "#FF79C6"` |
+| Fundo transparente | `theme.background = "transparent"` |
+| Profundidade de recolhimento | `vars.collapse_depth = 0` |
+| Linhas de descrição longa | `vars.max_description_lines = 3` |
+| Remapear tecla | `keys.set("i", add_sibling)` |
+| Barra de status | `bar.set({ fn, fn, ... })` |
 
 Presets: `nord`, `catppuccin_mocha`, `catppuccin_latte`, `dracula`, `gruvbox_dark`, `solarized_light`, `tokyo_night`. Doze cores sobrescrevíveis mais `urgency_colors`.
 
@@ -116,11 +119,12 @@ O faster-dooit expõe uma **API Lua** (um subconjunto deliberado da superfície 
 
 | API | Objetivo |
 |---|---|
-| `api.keys.set(key\|{keys}, action)` | Remapear teclas |
-| `api.formatter.todos.<field>.add(fn)` | Estilizar colunas |
-| `api.bar.set({fn, ...})` | Barra de status personalizada |
-| `api.dashboard.set({line, ...})` | Tela de boas-vindas |
-| `api.vars.theme` | Cores + presets |
+| `keys.set(key\|{keys}, action)` | Remapear teclas |
+| `formatter.todos.<field>.add(fn)` | Estilizar colunas |
+| `bar.set({fn, ...})` | Barra de status personalizada |
+| `dashboard.set({line, ...})` | Tela de boas-vindas |
+| `theme` / `vars` | Cores, presets, profundidade de recolhimento, linhas máx |
+| `notify(msg, level)` / `now(fmt)` | Feedback e tempo |
 | `subscribe(event, fn)` / `timer(sec, fn)` | Eventos e callbacks periódicos |
 
 ## Estrutura de diretórios
@@ -135,6 +139,7 @@ faster-dooit/
 │   ├── lua/                 # avaliação de config.lua em sandbox
 │   ├── theme/               # tema resolvido + 7 presets
 │   └── dateparse/           # datas em linguagem natural ("tomorrow", "3d")
+├── install.sh / install.ps1 # instaladores de uma linha
 └── config.lua               # configuração padrão do usuário
 ```
 

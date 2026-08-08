@@ -24,19 +24,19 @@
   <img src="https://img.shields.io/badge/Bubble_Tea-FF6D5B?style=flat&logo=charm&logoColor=white" alt="Bubble Tea" />
 </p>
 
-> **与官方 [dooit](https://github.com/dooit-org/dooit) 项目无关**——这是一个独立的从零重写移植。AI 协作的个人爱好项目。
+> **与官方 [dooit](https://github.com/dooit-org/dooit) 项目无关**——这是独立的从零重写移植。AI 协作的个人爱好项目。
 
 ## 为什么
 
-待办工具不该让你等。原版 dooit 冷启动要 **1.9 s**，而且每一帧都重建整棵树。faster-dooit 加载 **1 万个待办只需 ~34 ms**，只渲染可见部分，从不轮询数据库。这是 vim，用在你的待办上。
+待办工具不该让你等。原版 dooit 冷启动要 **1.9 s**，而且每一帧重建整棵树。faster-dooit 加载 **1 万个待办只需 ~34 ms**，只渲染可见部分，从不轮询数据库。这是 vim，用在你的待办上。
 
 ## 功能特性
 
 - ⚡ **快得感觉不到** — 1 万个待办冷载入 ~34 ms；同机原版约 1.9 s
 - 🎯 **vim 肌肉记忆** — `j`/`k` 移动，`a` 添加，`d 3d` 设截止日期，`c` 完成
-- 🗂️ **双栏树** — 嵌套工作区 + 待办、完成级联、自然语言日期、循环
+- 🗂️ **带折叠的双栏树** — 嵌套工作区 + 待办，`z`/`Z` 折叠，`collapse_depth` 自动折叠深层节点
 - 🎨 **真正合身的主题** — 7 套内置预设（`nord`、`dracula`、`catppuccin_mocha`…）加单色覆盖和透明背景
-- 🔌 **Lua 配置** — 重映射键位、定制列样式、自建状态栏——全在 `config.lua`
+- 🔌 **干净的 Lua 配置** — 没有 `api.` 前缀：`theme.name`、`keys.set`、`vars.urgency_colors`
 - 📦 **单个静态二进制** — 纯 Go、无 CGO、无运行时、无需审计的依赖树
 
 ## 快速开始
@@ -68,14 +68,15 @@ fdooit
 
 ```text
 ┌─ Workspaces ────────────────┐  ┌─ Todos ───────────────────────────────┐
-│  Work                       │  │  o  finish release notes     @today   │
-│  Personal                   │  │  o  write the spec                    │
+│  ⌄ Work                     │  │  ⌄ o  finish release notes   @today   │
+│  > Personal                 │  │    o  write the spec                  │
 └─────────────────────────────┘  └───────────────────────────────────────┘
 ```
 
 - `a` 添加待办 · `A` 添加子项 · `c` 切换完成 · `d` 设置截止日期（`tomorrow`、`3d`、`next monday`）
+- `z`/`Z` 折叠节点 / 父级 · `o` 展开超长描述
 - `S` 搜索 · `ctrl+s` 排序 · `y`/`Y` 复制 · `p`/`P` 粘贴 · `?` 帮助
-- 矮终端自动出现滚动条——thumb 跟随你的位置
+- 空列（无 due/recurrence）自动隐藏；矮终端自动显示滚动条
 
 ## 架构
 
@@ -102,11 +103,13 @@ graph LR
 
 | 设置 | 示例 |
 |---|---|
-| 主题 | `api.vars.theme.name = "dracula"` |
-| 颜色覆盖 | `api.vars.theme.primary = "#FF79C6"` |
-| 透明背景 | `api.vars.theme.background = "transparent"` |
-| 重映射键位 | `api.keys.set("i", api.add_sibling)` |
-| 状态栏 | `api.bar.set({ fn, fn, ... })` |
+| 主题 | `theme.name = "dracula"` |
+| 颜色覆盖 | `theme.primary = "#FF79C6"` |
+| 透明背景 | `theme.background = "transparent"` |
+| 折叠深度 | `vars.collapse_depth = 0` |
+| 超长描述行数 | `vars.max_description_lines = 3` |
+| 重映射键位 | `keys.set("i", add_sibling)` |
+| 状态栏 | `bar.set({ fn, fn, ... })` |
 
 内置主题：`nord`、`catppuccin_mocha`、`catppuccin_latte`、`dracula`、`gruvbox_dark`、`solarized_light`、`tokyo_night`。12 种可覆盖颜色加 `urgency_colors`。
 
@@ -116,11 +119,12 @@ faster-dooit 提供 **Lua API**（原版 Python 表面的刻意精简子集）�
 
 | API | 用途 |
 |---|---|
-| `api.keys.set(key\|{keys}, action)` | 重映射键位 |
-| `api.formatter.todos.<field>.add(fn)` | 定制待办列样式 |
-| `api.bar.set({fn, ...})` | 自定义状态栏 |
-| `api.dashboard.set({line, ...})` | 欢迎面板 |
-| `api.vars.theme` | 颜色 + 预设 |
+| `keys.set(key\|{keys}, action)` | 重映射键位 |
+| `formatter.todos.<field>.add(fn)` | 定制待办列样式 |
+| `bar.set({fn, ...})` | 自定义状态栏 |
+| `dashboard.set({line, ...})` | 欢迎面板 |
+| `theme` / `vars` | 颜色、预设、折叠深度、最大行数 |
+| `notify(msg, level)` / `now(fmt)` | 反馈与时间 |
 | `subscribe(event, fn)` / `timer(sec, fn)` | 事件与定时回调 |
 
 ## 目录结构
@@ -135,6 +139,7 @@ faster-dooit/
 │   ├── lua/                 # 沙箱 config.lua 求值
 │   ├── theme/               # 解析后的主题 + 7 套内置预设
 │   └── dateparse/           # 自然语言日期（"tomorrow"、"3d"）
+├── install.sh / install.ps1 # 一键安装脚本
 └── config.lua               # 默认用户配置
 ```
 
