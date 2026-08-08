@@ -36,10 +36,15 @@ func (m *Model) StartEdit(field string) tea.Cmd {
 
 	switch field {
 	case "description":
-		if t := m.selectedTodo(); t != nil {
+		// Pre-fill from the pane that has focus: a workspace when the
+		// workspace pane is focused, a todo otherwise. selectedTodo() ignores
+		// focus, so it must not be consulted while on the workspace pane.
+		if m.focus == PaneWorkspace {
+			if w := m.selectedWorkspaceByCursor(); w != nil {
+				m.input.SetValue(w.Description)
+			}
+		} else if t := m.selectedTodo(); t != nil {
 			m.input.SetValue(t.Description)
-		} else if w := m.selectedWorkspaceByCursor(); w != nil {
-			m.input.SetValue(w.Description)
 		}
 	case "due":
 		if t := m.selectedTodo(); t != nil && t.Due != nil {

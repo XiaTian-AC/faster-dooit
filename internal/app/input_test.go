@@ -568,3 +568,19 @@ func TestEditRecurrenceBoundaries(t *testing.T) {
 		}
 	})
 }
+
+// TestEditWorkspacePrefillsWorkspaceName: editing a workspace's description
+// while the workspace pane is focused must pre-fill the workspace name, not
+// the todo under the todo pane's cursor.
+func TestEditWorkspacePrefillsWorkspaceName(t *testing.T) {
+	m := newTestApp(t)
+	// newTestApp has a workspace "Work" and a todo "a" under it.
+	m.SetFocus(PaneWorkspace)
+	m.WorkspaceCursor = 0
+	// The todo pane cursor still points at todo "a"; editing the workspace
+	// must not pre-fill "a".
+	m.StartEdit("description")
+	if got := m.input.Value(); got != "Work" {
+		t.Fatalf("workspace edit should pre-fill %q, got %q", "Work", got)
+	}
+}
