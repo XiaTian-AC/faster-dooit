@@ -508,6 +508,19 @@ func TestClampAfterCollapseMovesCursorUp(t *testing.T) {
 	}
 }
 
+// TestUrgencyFloorsAtOne: urgency cannot decrease below 1 — `-` on a todo at
+// urgency 1 is a no-op.
+func TestUrgencyFloorsAtOne(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	todo := m.selectedTodo()
+	todo.Urgency = 1
+	m.actionDecreaseUrgency(m)
+	if todo.Urgency != 1 {
+		t.Fatalf("urgency should floor at 1, got %d", todo.Urgency)
+	}
+}
+
 func TestClampAfterCollapseRootVisible(t *testing.T) {
 	m := newTestApp(t)
 	m.SetFocus(PaneTodo)

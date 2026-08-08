@@ -408,7 +408,7 @@ func (m *Model) actionDecreaseUrgency(_ *Model) tea.Cmd {
 	if t == nil {
 		return nil
 	}
-	if t.Urgency > 0 {
+	if t.Urgency > 1 {
 		t.Urgency--
 	}
 	if err := m.store.SaveTodo(t); err != nil {

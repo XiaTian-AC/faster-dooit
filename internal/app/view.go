@@ -56,7 +56,7 @@ const (
 )
 
 func (m *Model) layoutMode() layoutMode {
-	mw, mh := 40, 12
+	mw, mh := 30, 6
 	if m.luaCfg != nil {
 		if m.luaCfg.MinWidth > 0 {
 			mw = m.luaCfg.MinWidth
@@ -75,7 +75,7 @@ func (m *Model) layoutMode() layoutMode {
 }
 
 func (m *Model) minSize() (int, int) {
-	mw, mh := 40, 12
+	mw, mh := 30, 6
 	if m.luaCfg != nil {
 		if m.luaCfg.MinWidth > 0 {
 			mw = m.luaCfg.MinWidth

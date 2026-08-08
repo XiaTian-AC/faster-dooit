@@ -101,8 +101,8 @@ func TestLayoutModeDecision(t *testing.T) {
 		{99, 30, layoutStacked},  // < W_stack
 		{100, 30, layoutNormal},  // >= W_stack
 		{150, 30, layoutNormal},
-		{80, 10, layoutTooSmall}, // too short
-		{30, 30, layoutTooSmall}, // too narrow
+		{80, 5, layoutTooSmall},  // too short
+		{29, 30, layoutTooSmall}, // too narrow
 	}
 	for _, c := range cases {
 		m.width, m.height = c.w, c.h
@@ -113,22 +113,22 @@ func TestLayoutModeDecision(t *testing.T) {
 }
 
 // TestLayoutModeMinSizeBoundaries: the too-small threshold follows config
-// (default 40x12), and a size exactly at the boundary is still renderable.
+// (default 30x6), and a size exactly at the boundary is still renderable.
 func TestLayoutModeMinSizeBoundaries(t *testing.T) {
 	m := newTestApp(t)
 	// Exactly at default min: not too small.
-	m.width, m.height = 40, 12
+	m.width, m.height = 30, 6
 	if m.layoutMode() == layoutTooSmall {
-		t.Fatalf("40x12 should not be too small, got %v", m.layoutMode())
+		t.Fatalf("30x6 should not be too small, got %v", m.layoutMode())
 	}
 	// One less on either axis flips to too-small.
-	m.width, m.height = 39, 12
+	m.width, m.height = 29, 6
 	if m.layoutMode() != layoutTooSmall {
-		t.Fatalf("39x12 should be too small, got %v", m.layoutMode())
+		t.Fatalf("29x6 should be too small, got %v", m.layoutMode())
 	}
-	m.width, m.height = 40, 11
+	m.width, m.height = 30, 5
 	if m.layoutMode() != layoutTooSmall {
-		t.Fatalf("40x11 should be too small, got %v", m.layoutMode())
+		t.Fatalf("30x5 should be too small, got %v", m.layoutMode())
 	}
 	// Config override: min_width=60 makes 50x30 too small.
 	rt, err := lua.EvalFileWithCode(`vars.min_width = 60`)
@@ -140,6 +140,18 @@ func TestLayoutModeMinSizeBoundaries(t *testing.T) {
 	m.width, m.height = 50, 30
 	if m.layoutMode() != layoutTooSmall {
 		t.Fatalf("50x30 with min_width=60 should be too small, got %v", m.layoutMode())
+	}
+}
+
+// TestRendersBelowOldFloor: the layout floor dropped from 40x12 to 30x6, so a
+// short-but-not-tiny terminal (height 8) must render the panes instead of the
+// "Terminal size too small" notice.
+func TestRendersBelowOldFloor(t *testing.T) {
+	m := newTestApp(t)
+	m.width, m.height = 80, 8
+	v := m.View()
+	if strings.Contains(v, "Terminal size too small") {
+		t.Fatalf("height 8 should render panes, got the too-small notice:\n%s", v)
 	}
 }
 
@@ -206,7 +218,7 @@ func TestDualToStackedTransition(t *testing.T) {
 
 func TestTooSmallNotice(t *testing.T) {
 	m := newTestApp(t)
-	m.width, m.height = 30, 30
+	m.width, m.height = 29, 30
 	got := m.View()
 	if !strings.Contains(got, "Terminal size too small") {
 		t.Fatalf("expected too-small notice, got:\n%s", got)
@@ -262,7 +274,7 @@ func TestViewportScrollKeepsCursorVisible(t *testing.T) {
 		t.Fatalf("cursor = %d, want 8", m.TodoCursor)
 	}
 	// Short terminal: stacked, todo pane gets a small viewport. Height 14 is
-	// above H_min(12) but below H_ok(24), so viewport scrolling is active.
+	// above H_min(6), so viewport scrolling is active.
 	m.width, m.height = 80, 14
 	v := m.View()
 	lines := strings.Split(v, "\n")

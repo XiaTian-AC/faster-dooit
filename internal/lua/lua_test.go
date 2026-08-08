@@ -91,8 +91,8 @@ func TestMinSizeDefaultsAndOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rt.Close()
-	if rt.MinWidth != 40 || rt.MinHeight != 12 {
-		t.Fatalf("defaults = %d/%d, want 40/12", rt.MinWidth, rt.MinHeight)
+	if rt.MinWidth != 30 || rt.MinHeight != 6 {
+		t.Fatalf("defaults = %d/%d, want 30/6", rt.MinWidth, rt.MinHeight)
 	}
 
 	rt2, err := EvalFileWithCode(`vars.min_width = 60`)
@@ -103,8 +103,8 @@ func TestMinSizeDefaultsAndOverride(t *testing.T) {
 	if rt2.MinWidth != 60 {
 		t.Fatalf("min_width = %d, want 60", rt2.MinWidth)
 	}
-	if rt2.MinHeight != 12 {
-		t.Fatalf("min_height = %d, want default 12", rt2.MinHeight)
+	if rt2.MinHeight != 6 {
+		t.Fatalf("min_height = %d, want default 6", rt2.MinHeight)
 	}
 }
 

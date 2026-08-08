@@ -203,8 +203,8 @@ func TestUrgencyCappedAt5(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		m.actionDecreaseUrgency(m)
 	}
-	if got := m.selectedTodo().Urgency; got != 0 {
-		t.Fatalf("urgency should floor at 0, got %d", got)
+	if got := m.selectedTodo().Urgency; got != 1 {
+		t.Fatalf("urgency should floor at 1, got %d", got)
 	}
 }
 

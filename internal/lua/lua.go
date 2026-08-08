@@ -100,7 +100,7 @@ type Runtime struct {
 	Timers      []Timer
 
 	// MinWidth/MinHeight are the minimum terminal size for the UI, from
-	// vars.min_width / vars.min_height (defaults 40/12).
+	// vars.min_width / vars.min_height (defaults 30/6).
 	MinWidth  int
 	MinHeight int
 
@@ -479,10 +479,10 @@ func (rt *Runtime) readTheme() error {
 		}
 	}
 	if rt.MinWidth == 0 {
-		rt.MinWidth = 40
+		rt.MinWidth = 30
 	}
 	if rt.MinHeight == 0 {
-		rt.MinHeight = 12
+		rt.MinHeight = 6
 	}
 
 	if rt.varsTable != nil {
