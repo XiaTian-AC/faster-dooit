@@ -41,6 +41,10 @@ type Model struct {
 	// expanded[id] = true if the node is expanded in its tree view.
 	expanded map[int64]bool
 
+	// collapseDepth is the default collapse depth (0 = expand all) from
+	// config api.vars.collapse_depth. Overridden by manual z/Z toggles.
+	collapseDepth int
+
 	// selectedWorkspaceID is the workspace currently shown in the todo pane.
 	selectedWorkspaceID int64
 
@@ -122,6 +126,9 @@ func New(st *store.Store, luaCfg *lua.Runtime) *Model {
 		expanded: map[int64]bool{},
 		keys:     newKeyManager(bindings), //nolint:exhaustruct
 	}
+	if luaCfg != nil {
+		m.collapseDepth = luaCfg.CollapseDepth
+	}
 	m.actions = m.defaultActions()
 	return m
 }
@@ -155,6 +162,21 @@ func (m *Model) RefreshFromStore() error {
 
 // bumpVersion invalidates renderer caches without mutating state.
 func (m *Model) BumpVersion() { m.version++ }
+
+// defaultCollapseDepth returns the configured default collapse depth.
+func (m *Model) defaultCollapseDepth() int {
+	return m.collapseDepth
+}
+
+// isExpanded reports whether a node at the given tree depth renders expanded.
+// A manual override in m.expanded wins; otherwise nodes at depth <=
+// collapse_depth start expanded, deeper nodes start collapsed.
+func (m *Model) isExpanded(id int64, depth int) bool {
+	if v, ok := m.expanded[id]; ok {
+		return v
+	}
+	return depth <= m.defaultCollapseDepth()
+}
 
 // SetFocus moves focus to pane (0=workspace, 1=todo).
 func (m *Model) SetFocus(pane int) {

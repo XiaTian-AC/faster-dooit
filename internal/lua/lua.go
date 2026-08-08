@@ -103,6 +103,10 @@ type Runtime struct {
 	MinWidth  int
 	MinHeight int
 
+	// CollapseDepth is the default tree-collapse depth from
+	// api.vars.collapse_depth (default 0 = everything expanded).
+	CollapseDepth int
+
 	themeTable *lua.LTable // reference to api.vars.theme for readTheme
 	varsTable  *lua.LTable // reference to api.vars for readTheme
 	explicit   map[string]string // recorded by the theme __newindex metatable
@@ -480,6 +484,12 @@ func (rt *Runtime) readTheme() error {
 	}
 	if rt.MinHeight == 0 {
 		rt.MinHeight = 12
+	}
+
+	if rt.varsTable != nil {
+		if n, ok := L.GetField(rt.varsTable, "collapse_depth").(lua.LNumber); ok {
+			rt.CollapseDepth = int(n)
+		}
 	}
 
 	if !themeNameValid(rt.Theme.Name) {

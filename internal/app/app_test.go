@@ -400,3 +400,32 @@ func TestWorkspaceAddSiblingNested(t *testing.T) {
 		t.Fatalf("a on a nested workspace should add a sibling under Work, got %d children", len(work.Children))
 	}
 }
+
+func TestIsExpandedManualOverrideWins(t *testing.T) {
+	m := newTestApp(t)
+	m.expanded[99] = true
+	if !m.isExpanded(99, 5) {
+		t.Fatal("manual true should expand a deep node")
+	}
+	m.expanded[100] = false
+	if m.isExpanded(100, 0) {
+		t.Fatal("manual false should collapse a shallow node")
+	}
+}
+
+func TestIsExpandedDefaultDepth(t *testing.T) {
+	m := newTestApp(t)
+	if !m.isExpanded(1, 0) {
+		t.Fatal("depth 0 should be expanded with collapse_depth 0")
+	}
+	if m.isExpanded(2, 1) {
+		t.Fatal("depth 1 should be collapsed with collapse_depth 0")
+	}
+	m.collapseDepth = 1
+	if !m.isExpanded(2, 1) {
+		t.Fatal("depth 1 should be expanded with collapse_depth 1")
+	}
+	if m.isExpanded(3, 2) {
+		t.Fatal("depth 2 should be collapsed with collapse_depth 1")
+	}
+}

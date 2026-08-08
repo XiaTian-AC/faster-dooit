@@ -219,3 +219,23 @@ func TestThemeUnknownNameErrors(t *testing.T) {
 		t.Fatal("unknown theme name must error")
 	}
 }
+
+func TestCollapseDepthLoaded(t *testing.T) {
+	rt, err := EvalFileWithCode(`api.vars.collapse_depth = 2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.CollapseDepth != 2 {
+		t.Fatalf("collapse_depth = %d, want 2", rt.CollapseDepth)
+	}
+}
+
+func TestCollapseDepthDefaultsZero(t *testing.T) {
+	rt, err := EvalFileWithCode(``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rt.CollapseDepth != 0 {
+		t.Fatalf("collapse_depth default = %d, want 0", rt.CollapseDepth)
+	}
+}
