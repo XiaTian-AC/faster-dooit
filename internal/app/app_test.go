@@ -481,3 +481,41 @@ func TestVisibleWorkspacesHonorsCollapse(t *testing.T) {
 		t.Fatalf("expected 1 visible workspace after collapse, got %d", got)
 	}
 }
+
+func TestClampAfterCollapseMovesCursorUp(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	root := m.selectedTodo()
+	child := &model.Todo{Description: "child", Pending: true, ParentTodoID: &root.ID}
+	root.Todos = append(root.Todos, child)
+	if err := m.store.SaveTodo(child); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RefreshFromStore(); err != nil {
+		t.Fatal(err)
+	}
+	// Expand the root so the child is visible, then move the cursor to it.
+	m.expanded[root.ID] = true
+	if got := len(m.visibleTodos()); got != 2 {
+		t.Fatalf("expected 2 visible todos after expand, got %d", got)
+	}
+	m.TodoCursor = 1
+	m.expanded[root.ID] = false
+	m.clampAfterCollapse(PaneTodo, root.ID)
+	sel := m.selectedTodo()
+	if sel == nil || sel.ID != root.ID {
+		t.Fatalf("cursor should jump to the collapsed node, got %+v", sel)
+	}
+}
+
+func TestClampAfterCollapseRootVisible(t *testing.T) {
+	m := newTestApp(t)
+	m.SetFocus(PaneTodo)
+	root := m.selectedTodo()
+	m.TodoCursor = 0
+	m.expanded[root.ID] = false
+	m.clampAfterCollapse(PaneTodo, root.ID)
+	if sel := m.selectedTodo(); sel == nil || sel.ID != root.ID {
+		t.Fatalf("cursor should stay on the root, got %+v", sel)
+	}
+}

@@ -456,6 +456,39 @@ func (m *Model) actionShiftUp(_ *Model) tea.Cmd {
 
 // ----- expand / collapse -----
 
+// clampAfterCollapse repositions the cursor after a node collapses so it
+// never points at a now-hidden child. collapsedID is the node that collapsed;
+// the cursor jumps to it if it was below it in the list.
+func (m *Model) clampAfterCollapse(pane int, collapsedID int64) {
+	if pane == PaneWorkspace {
+		ws := m.VisibleWorkspaces()
+		if idx := indexOfWorkspaceByID(ws, collapsedID); idx >= 0 {
+			m.WorkspaceCursor = idx
+			return
+		}
+		if len(ws) == 0 {
+			m.WorkspaceCursor = 0
+			return
+		}
+		if m.WorkspaceCursor >= len(ws) {
+			m.WorkspaceCursor = len(ws) - 1
+		}
+		return
+	}
+	todos := m.visibleTodos()
+	if idx := indexOfTodoByID(todos, collapsedID); idx >= 0 {
+		m.TodoCursor = idx
+		return
+	}
+	if len(todos) == 0 {
+		m.TodoCursor = 0
+		return
+	}
+	if m.TodoCursor >= len(todos) {
+		m.TodoCursor = len(todos) - 1
+	}
+}
+
 func (m *Model) actionToggleExpand(_ *Model) tea.Cmd {
 	var id int64
 	if m.focus == PaneWorkspace {
@@ -472,6 +505,9 @@ func (m *Model) actionToggleExpand(_ *Model) tea.Cmd {
 		id = t.ID
 	}
 	m.expanded[id] = !m.expanded[id]
+	if !m.expanded[id] { // just collapsed
+		m.clampAfterCollapse(m.focus, id)
+	}
 	m.BumpVersion()
 	return nil
 }
@@ -501,6 +537,9 @@ func (m *Model) actionToggleExpandParent(_ *Model) tea.Cmd {
 		}
 	}
 	m.expanded[id] = !m.expanded[id]
+	if !m.expanded[id] { // just collapsed the parent
+		m.clampAfterCollapse(m.focus, id)
+	}
 	m.BumpVersion()
 	return nil
 }
