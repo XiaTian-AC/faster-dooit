@@ -368,9 +368,15 @@ func (m *Model) renderWorkspacePaneViewport(w, scroll, contentLines int) string 
 			continue
 		}
 		row := indent + marker + m.RenderRow(PaneWorkspace, i)
+		hasChildren := len(ws[i].Children) > 0
 		if selected {
-			row = m.renderSelectedRow(row, contentW)
+			selW := contentW
+			if hasChildren {
+				selW = contentW - expandArrowW
+			}
+			row = m.renderSelectedRow(row, selW)
 		}
+		row = m.renderExpandArrow(row, hasChildren, m.isExpanded(ws[i].ID, ws[i].NestLevel()))
 		if hasScrollbar {
 			row = m.appendScrollbar(row, contentW, contentRows, thumb, i-lo)
 		}
@@ -439,7 +445,8 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 	if hasScrollbar {
 		contentW = w - 1
 	}
-	budget := contentW - markerW - maxIndent*2
+	// Arrow width reserved at the row tail for the expand/collapse indicator.
+	budget := contentW - markerW - maxIndent*2 - expandArrowW
 	if budget < 8 {
 		budget = 8
 	}
@@ -483,9 +490,16 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 			continue
 		}
 		row := indent + marker + m.formatTodoAligned(todos[i], cols, widths)
+		hasChildren := len(todos[i].Todos) > 0
 		if selected {
-			row = m.renderSelectedRow(row, contentW)
+			// Reserve the arrow width only when the node actually renders one.
+			selW := contentW
+			if hasChildren {
+				selW = contentW - expandArrowW
+			}
+			row = m.renderSelectedRow(row, selW)
 		}
+		row = m.renderExpandArrow(row, hasChildren, m.isExpanded(todos[i].ID, todos[i].NestLevel()))
 		if hasScrollbar {
 			row = m.appendScrollbar(row, contentW, contentRows, thumb, i-lo)
 		}
@@ -548,6 +562,10 @@ func max(a, b int) int {
 	}
 	return b
 }
+
+// expandArrowW is the display width of the expand/collapse arrow (" ▸" / " ▾").
+// Reserved in pane width budgets and row padding so arrows never overflow.
+const expandArrowW = 2
 
 // scrollbarThumb returns the content row (0..contentRows-1) the scrollbar
 // thumb sits on for total items, contentRows visible content rows (title

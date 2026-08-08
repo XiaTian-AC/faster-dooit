@@ -144,3 +144,20 @@ func TestDescriptionUsesThemeColor(t *testing.T) {
 	}
 }
 
+
+func TestRenderExpandArrow(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	m := newTestApp(t)
+	no := m.renderExpandArrow("abc", false, false)
+	if strings.Contains(no, "▸") || strings.Contains(no, "▾") {
+		t.Fatalf("leaf node must not get an arrow, got %q", no)
+	}
+	collapsed := m.renderExpandArrow("abc", true, false)
+	if !strings.Contains(collapsed, "▸") {
+		t.Fatalf("collapsed node should show ▸, got %q", collapsed)
+	}
+	expanded := m.renderExpandArrow("abc", true, true)
+	if !strings.Contains(expanded, "▾") {
+		t.Fatalf("expanded node should show ▾, got %q", expanded)
+	}
+}

@@ -383,3 +383,16 @@ func (m *Model) DashboardLines() []string {
 	}
 	return []string{"Welcome to Faster Dooit!", "", "Press '?' for help."}
 }
+
+// renderExpandArrow appends ▸ (collapsed) or ▾ (expanded) to a row when the
+// node has children. Leaf nodes get no arrow.
+func (m *Model) renderExpandArrow(row string, hasChildren, expanded bool) string {
+	if !hasChildren {
+		return row
+	}
+	arrow := "▸"
+	if expanded {
+		arrow = "▾"
+	}
+	return row + m.appTheme().Style("primary").Render(" " + arrow)
+}
