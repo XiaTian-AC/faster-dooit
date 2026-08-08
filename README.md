@@ -35,7 +35,7 @@ Your todo tool shouldn't make you wait. The original dooit pays **1.9 s** cold-s
 
 - ⚡ **Fast enough to feel instant** — 10k todos cold-load in ~34 ms; the original takes ~1.9 s on the same machine
 - 🎯 **vim muscle memory** — `j`/`k` move, `a` adds, `d 3d` sets a due date, `c` completes
-- 🗂️ **Two-pane tree** — nested workspaces + todos, completion cascades, natural-language dates, recurrence
+- 🗂️ **Two-pane tree** — nested workspaces + todos, folding (`z`/`Z`), completion cascades, natural-language dates, recurrence
 - 🎨 **Themes that actually fit** — 7 built-in presets (`nord`, `dracula`, `catppuccin_mocha`…) plus per-color overrides and transparent backgrounds
 - 🔌 **Lua config** — remap keys, style columns, build a custom status bar — everything in `config.lua`
 - 📦 **Single static binary** — pure Go, no CGO, no runtime, no dependency tree to audit

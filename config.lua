@@ -32,6 +32,10 @@ api.vars.theme.name = "nord"
 -- Urgency colors for levels 1..5 (index 1 = urgency 1). Customize freely.
 api.vars.urgency_colors = { "#A3BE8C", "#EBCB8B", "#D08770", "#BF616A", "#FF5C5C" }
 
+-- Default tree-collapse depth: nodes at depth > collapse_depth start
+-- collapsed. 0 = expand everything (default). Toggle any node with z / Z.
+api.vars.collapse_depth = 0
+
 -- Column layout for each pane.
 api.layouts.workspace_layout = { "description" }
 api.layouts.todo_layout = { "status", "description", "due", "effort", "recurrence", "urgency" }

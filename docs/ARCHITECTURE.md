@@ -140,7 +140,7 @@ original Python API:
 - `api.layouts.<name> = {col, ...}`
 - `api.formatter.todos.<field>.add(fn)`
 - `api.bar.set({fn, ...})`, `api.dashboard.set({line, ...})`
-- `api.vars.theme`, `api.vars.urgency_colors`, `api.vars.min_width/height`
+- `api.vars.theme`, `api.vars.urgency_colors`, `api.vars.min_width/height`, `api.vars.collapse_depth`
 - `api.notify`, `api.now`, globals `subscribe` / `timer`
 
 An invalid file prints a `file:line` error and exits.
