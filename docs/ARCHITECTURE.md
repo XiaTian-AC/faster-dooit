@@ -37,7 +37,7 @@ main.go ──► internal/app ──► internal/{model,store,theme}
 | `internal/app` | Bubble Tea model: input modes, key dispatch, actions, rendering, resize handling |
 | `internal/model` | In-memory tree: `Workspace` / `Todo` structs, sort, completion cascade rules |
 | `internal/store` | SQLite persistence: schema, load-all, save/delete, reorder |
-| `internal/lua` | Sandboxed `config.lua` evaluation; exposes the `api` surface |
+| `internal/lua` | Sandboxed `config.lua` evaluation; exposes the bare-global config surface |
 | `internal/theme` | Resolved color theme + built-in presets |
 | `internal/dateparse` | Natural-language date parsing (`tomorrow`, `3d`, `next monday`) |
 
@@ -79,7 +79,7 @@ Modes are a string enum in `internal/app/mode.go`:
 Key dispatch: `update.go` routes `KeyMsg` through the key manager
 (`keymap.go`), which resolves single keys and chords (`gg`, `xx`) against a
 binding table. Bindings come from `defaultKeyBindings()` or `config.lua`
-(`api.keys.set`), whichever is configured.
+(`keys.set`), whichever is configured.
 
 Todo-only edits (`d`/`r`/`e`) are **no-ops** unless the todo pane is focused
 and a todo is under the cursor; `enter`/`i` are no-ops on an empty pane.
@@ -134,14 +134,16 @@ The composite key `pending → due → order_index` applies **only** to the
 
 `internal/lua` evaluates `config.lua` in a sandbox (no `io`/`os`/`package`/
 `debug`/`coroutine`; 1M-instruction limit). It exposes a closed subset of the
-original Python API:
+original Python API as **bare globals** (no `api.` prefix):
 
-- `api.keys.set(key|{keys}, action)`
-- `api.layouts.<name> = {col, ...}`
-- `api.formatter.todos.<field>.add(fn)`
-- `api.bar.set({fn, ...})`, `api.dashboard.set({line, ...})`
-- `api.vars.theme`, `api.vars.urgency_colors`, `api.vars.min_width/height`, `api.vars.collapse_depth`
-- `api.notify`, `api.now`, globals `subscribe` / `timer`
+- `keys.set(key|{keys}, action)` — actions are bare string constants
+  (`move_down`, `toggle_description_expand`, …)
+- `layouts.<name> = {col, ...}`
+- `formatter.todos.<field>.add(fn)`
+- `bar.set({fn, ...})`, `dashboard.set({line, ...})`
+- `theme` (colors + preset name), `vars` (`urgency_colors`,
+  `min_width`/`min_height`, `collapse_depth`, `max_description_lines`)
+- `notify`, `now`, globals `subscribe` / `timer`
 
 An invalid file prints a `file:line` error and exits.
 
@@ -149,8 +151,8 @@ An invalid file prints a `file:line` error and exits.
 
 Colors are resolved by `internal/theme`:
 
-1. `config.lua` sets `api.vars.theme.name` (default `nord`); a Lua
-   `__newindex` metatable records which color fields were explicitly assigned.
+1. `config.lua` sets `theme.name` (default `nord`); a Lua `__newindex`
+   metatable records which color fields were explicitly assigned.
 2. `theme.Resolve(name, explicit)` starts from the named preset and applies
    each explicitly-assigned color as an override — order-independent.
 3. Unknown names are config errors listing the available presets.
@@ -160,7 +162,7 @@ Built-in presets: `nord`, `catppuccin_mocha`, `catppuccin_latte`, `dracula`,
 8 base (`primary`, `secondary`, `background`, `background1`, `green`,
 `yellow`, `orange`, `red`) plus `dim`, `selection`, `border_focused`,
 `border_unfocused`, and `urgency_colors`. Setting
-`api.vars.theme.background = "transparent"` disables the full-screen fill.
+`theme.background = "transparent"` disables the full-screen fill.
 
 ## Default paths
 

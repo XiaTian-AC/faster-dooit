@@ -75,6 +75,7 @@ fdooit
 ```
 
 - `a` add a todo · `A` add a child · `c` toggle complete · `d` set due (`tomorrow`, `3d`, `next monday`)
+- `o` expand/collapse a todo's full multi-line description
 - `S` search · `ctrl+s` sort · `y`/`Y` copy · `p`/`P` paste · `?` help
 - Scrollbar appears on short terminals — thumb follows your position
 
@@ -103,11 +104,12 @@ The performance model is three deliberate choices: **load-once** (DB read into m
 
 | Setting | Example |
 |---|---|
-| Theme | `api.vars.theme.name = "dracula"` |
-| Color override | `api.vars.theme.primary = "#FF79C6"` |
-| Transparent bg | `api.vars.theme.background = "transparent"` |
-| Remap key | `api.keys.set("i", api.add_sibling)` |
-| Status bar | `api.bar.set({ fn, fn, ... })` |
+| Theme | `theme.name = "dracula"` |
+| Color override | `theme.primary = "#FF79C6"` |
+| Transparent bg | `theme.background = "transparent"` |
+| Remap key | `keys.set("i", add_sibling)` |
+| Expanded description lines | `vars.max_description_lines = 3` (`0` = never ellipsize) |
+| Status bar | `bar.set({ fn, fn, ... })` |
 
 Built-in themes: `nord`, `catppuccin_mocha`, `catppuccin_latte`, `dracula`, `gruvbox_dark`, `solarized_light`, `tokyo_night`. Twelve overridable colors plus `urgency_colors`.
 
@@ -117,11 +119,11 @@ faster-dooit exposes a **Lua API** (a deliberate subset of the original Python s
 
 | API | Purpose |
 |---|---|
-| `api.keys.set(key\|{keys}, action)` | Remap keybindings |
-| `api.formatter.todos.<field>.add(fn)` | Style todo columns |
-| `api.bar.set({fn, ...})` | Custom status bar |
-| `api.dashboard.set({line, ...})` | Welcome dashboard |
-| `api.vars.theme` | Colors + presets |
+| `keys.set(key\|{keys}, action)` | Remap keybindings |
+| `formatter.todos.<field>.add(fn)` | Style todo columns |
+| `bar.set({fn, ...})` | Custom status bar |
+| `dashboard.set({line, ...})` | Welcome dashboard |
+| `theme` / `vars` | Colors + presets / urgency colors, collapse depth, min size, `max_description_lines` |
 | `subscribe(event, fn)` / `timer(sec, fn)` | Events & periodic callbacks |
 
 ## Directory Structure
