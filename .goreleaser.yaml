@@ -40,7 +40,7 @@ archives:
         formats: [zip]
     files:
       - README.md
-      - README.zh-CN.md
+      - README-*.md
       - LICENSE
 
 checksum:
