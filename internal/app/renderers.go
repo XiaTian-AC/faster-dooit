@@ -289,7 +289,7 @@ func (m *Model) formatTodoAligned(t *model.Todo, cols []string, paneW int) []str
 	maxLines := m.maxDescLines
 	if maxLines > 0 {
 		for i := 1; i < len(wrapped) && len(out) < maxLines; i++ {
-			out = append(out, wrapped[i])
+			out = append(out, m.appTheme().Style("primary").Render(wrapped[i]))
 		}
 		// More description remains than fits: the last rendered line signals it
 		// with an ellipsis.
@@ -299,7 +299,9 @@ func (m *Model) formatTodoAligned(t *model.Todo, cols []string, paneW int) []str
 	} else {
 		// maxDescLines == 0: never ellipsize — always show the full
 		// description, even if it pushes the row past the default line count.
-		out = append(out, wrapped[1:]...)
+		for _, frag := range wrapped[1:] {
+			out = append(out, m.appTheme().Style("primary").Render(frag))
+		}
 	}
 
 	// Continuation lines align under the first line's description column

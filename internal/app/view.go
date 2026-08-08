@@ -527,18 +527,27 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 // color resets (a lipgloss .Background would be dropped by the first \x1b[0m
 // inside a colored cell, leaving only the cursor arrow highlighted).
 func (m *Model) renderSelectedRow(row string, w int) string {
-	visible := lipgloss.Width(row)
-	if pad := w - visible; pad > 0 {
-		row += strings.Repeat(" ", pad)
-	}
 	th := m.appTheme()
 	bg := ansiBackground(th.Selection)
 	if bg == "" {
+		if pad := w - lipgloss.Width(row); pad > 0 {
+			row += strings.Repeat(" ", pad)
+		}
 		return row
 	}
 	reset := "\x1b[0m"
-	// Re-apply the background after every reset so the highlight spans the row.
-	return bg + strings.ReplaceAll(row, reset, reset+bg) + reset
+	// Multi-line rows (wrapping textinput, expanded long description):
+	// every line gets the background independently, padded to the pane
+	// width, because a single wrap would only color the first line.
+	lines := strings.Split(row, "\n")
+	out := make([]string, 0, len(lines))
+	for _, ln := range lines {
+		if pad := w - lipgloss.Width(ln); pad > 0 {
+			ln += strings.Repeat(" ", pad)
+		}
+		out = append(out, bg+strings.ReplaceAll(ln, reset, reset+bg)+reset)
+	}
+	return strings.Join(out, "\n")
 }
 
 // ansiBackground converts a #RRGGBB color to a 24-bit ANSI background sequence,

@@ -87,8 +87,8 @@ func TestDashboardFromConfig(t *testing.T) {
 
 func TestAppThemeResolvesPresetAndOverride(t *testing.T) {
 	m := newTestAppLua(t)
-	// newTestAppLua evaluates config.lua (theme.name defaults to nord).
 	th := m.appTheme()
+	// newTestAppLua evaluates config.lua (theme.name defaults to nord).
 	if th.Primary == "" || th.Background == "" || th.Dim == "" || th.Selection == "" {
 		t.Fatalf("appTheme incomplete: %+v", th)
 	}
@@ -312,5 +312,30 @@ func TestExpandedDescriptionZeroNeverEllipsizes(t *testing.T) {
 	}
 	if strings.Contains(stripANSI(v), "…") {
 		t.Fatalf("maxDescLines=0 must never ellipsize:\n%s", v)
+	}
+}
+
+// TestExpandDescriptionContinuationLinesStaysThemed: when a long description is
+// expanded (o), continuation lines (lines 2+) must keep the theme primary
+// foreground, not render as plain text.
+func TestExpandDescriptionContinuationLinesStaysThemed(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	m := newTestApp(t)
+	todo := m.selectedTodo()
+	todo.Description = "first line here that is long enough to wrap " +
+		"second line here that is long enough to wrap " +
+		"third line here that is long enough to wrap"
+	m.expandedDesc[todo.ID] = true
+	rows := m.formatTodoAligned(todo, m.ColumnLayout(PaneTodo), 60)
+	if len(rows) < 2 {
+		t.Fatalf("expected at least 2 rows, got %d", len(rows))
+	}
+	// The first line should still use the primary style (was already so).
+	if !strings.Contains(stripANSI(rows[0]), "") {
+		t.Fatalf("line 0 should carry a non-empty render: %q", stripANSI(rows[0]))
+	}
+	// Continuation lines 1+ must also carry the primary foreground.
+	if !strings.Contains(rows[1], "[38;2;") {
+		t.Fatalf("continuation line 1 should use primary foreground ANSI, got %q", rows[1])
 	}
 }

@@ -868,3 +868,24 @@ func TestStackedBordersFitHeight(t *testing.T) {
 		t.Fatalf("stacked output has %d lines, terminal height %d — borders overflow", len(lines), m.height)
 	}
 }
+
+// TestRenderSelectedRowMultiLine: a multi-line row (e.g. a wrapping textinput)
+// must have the selection background applied to every line, not just the
+// first.
+func TestRenderSelectedRowMultiLine(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	m := newTestApp(t)
+	row := "line one that is fairly long\nline two here\nline three"
+	w := 20
+	out := m.renderSelectedRow(row, w)
+	lines := strings.Split(out, "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 output lines, got %d", len(lines))
+	}
+	for i, ln := range lines {
+		if !strings.Contains(ln, "[48;2;") {
+			t.Fatalf("line %d missing background: %q", i, ln)
+		}
+	}
+}
+
