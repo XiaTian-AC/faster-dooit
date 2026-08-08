@@ -706,7 +706,7 @@ func TestRowMarkerShowsFoldState(t *testing.T) {
 	if err := m.RefreshFromStore(); err != nil {
 		t.Fatal(err)
 	}
-	// Expanded root: marker shows ▾ at the row start.
+	// Expanded root: marker shows ⌄ at the row start.
 	m.expanded[root.ID] = true
 	v := m.renderTodoPane(60)
 	lines := strings.Split(v, "\n")
@@ -717,8 +717,8 @@ func TestRowMarkerShowsFoldState(t *testing.T) {
 			break
 		}
 	}
-	if rootLine == "" || !strings.HasPrefix(rootLine, "▾ ") {
-		t.Fatalf("expanded root should start with ▾ marker, got %q", rootLine)
+	if rootLine == "" || !strings.HasPrefix(rootLine, "⌄ ") {
+		t.Fatalf("expanded root should start with ⌄ marker, got %q", rootLine)
 	}
 	// Collapsed root: marker shows > at the row start.
 	m.expanded[root.ID] = false

@@ -386,7 +386,7 @@ func (m *Model) DashboardLines() []string {
 
 // renderRowMarker returns the leading marker slot for a row: the fold arrow
 // for collapsible nodes, blank for leaves. Collapsed nodes show ">", expanded
-// nodes show "▾" (a downward-pointing caret). Selection is conveyed by the row
+// nodes show "⌄" (a downward-pointing caret). Selection is conveyed by the row
 // highlight, not by a cursor arrow here.
 func (m *Model) renderRowMarker(hasChildren, expanded bool) string {
 	if !hasChildren {
@@ -394,7 +394,7 @@ func (m *Model) renderRowMarker(hasChildren, expanded bool) string {
 	}
 	ch := ">"
 	if expanded {
-		ch = "▾"
+		ch = "⌄"
 	}
 	return m.appTheme().Style("primary").Render(ch + " ")
 }

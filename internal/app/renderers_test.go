@@ -156,8 +156,8 @@ func TestRenderRowMarker(t *testing.T) {
 	if got := stripANSI(m.renderRowMarker(true, false)); got != "> " {
 		t.Fatalf("collapsed marker = %q, want \"> \"", got)
 	}
-	// Expanded with children: "▾".
-	if got := stripANSI(m.renderRowMarker(true, true)); got != "▾ " {
-		t.Fatalf("expanded marker = %q, want \"▾ \"", got)
+	// Expanded with children: "⌄".
+	if got := stripANSI(m.renderRowMarker(true, true)); got != "⌄ " {
+		t.Fatalf("expanded marker = %q, want \"⌄ \"", got)
 	}
 }

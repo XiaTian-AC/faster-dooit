@@ -468,7 +468,7 @@ func (m *Model) renderTodoPaneViewport(w, scroll, contentLines int) string {
 	for i := lo; i < hi; i++ {
 		selected := i == m.TodoCursor && m.focus == PaneTodo
 		// The marker slot shows the fold state for collapsible nodes:
-		// ">" when collapsed, "▾" when expanded, blank for leaves. The
+		// ">" when collapsed, "⌄" when expanded, blank for leaves. The
 		// selected row is identified by its highlight, not a cursor arrow.
 		expanded := m.isExpanded(todos[i].ID, todos[i].NestLevel())
 		marker := m.renderRowMarker(len(todos[i].Todos) > 0, expanded)
